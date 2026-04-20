@@ -129,7 +129,7 @@ function Hero() {
       </div>
       <div className="relative">
         <p className="font-display text-[10px] uppercase tracking-[0.5em] text-[var(--color-blaze)]">
-          ElevenLabs × Kiro · Hackathon 04
+          Live AI Broadcast · Ch. 01
         </p>
         <h1 className="mt-2 font-display text-[clamp(3rem,14vw,5.5rem)] leading-[0.88] text-[var(--color-chalk)]">
           EVERY STEP.
@@ -139,8 +139,8 @@ function Hero() {
           EVENT.
         </h1>
         <p className="mt-3 max-w-sm text-[15px] leading-snug text-[var(--color-chalk)]/80">
-          An AI sports broadcast for your walk, run, or ride. You move, an ElevenLabs commentator goes feral.
-          Crowd roars included. Film it. Post it. Win the hackathon.
+          An AI sports broadcast for your walk, run, or ride. You move, a pro-grade AI commentator goes feral.
+          Crowd roars included. Phone in a pocket, headphones in, GO.
         </p>
       </div>
     </section>
@@ -151,11 +151,11 @@ function Pillars() {
   const items = [
     {
       title: "AI PLAY-BY-PLAY",
-      body: "ElevenLabs v2 TTS reacts to your pace, distance, and anything you shout into your collar mic.",
+      body: "A pro-grade AI commentator reacts to your pace, distance, and anything you shout into your collar mic.",
     },
     {
       title: "STADIUM CROWD",
-      body: "A generative SFX bed from ElevenLabs Sound Effects keeps the roar under you the whole run.",
+      body: "A generative crowd bed keeps the roar under you the whole run — tunnels, hills, finish lines included.",
     },
     {
       title: "BROADCAST HUD",

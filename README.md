@@ -2,15 +2,11 @@
 
 **Every step, the main event.**
 
-An AI sports broadcast for your run, walk, or bike ride. You move, an ElevenLabs commentator goes feral. Crowd roars included.
-
-Built for **ElevenLabs × Kiro Hackathon #4** (`#ElevenHacks` · `#CodeWithKiro`).
-
-![Stadium HUD](./.github/screenshot.png)
+An AI sports broadcast for your run, walk, or bike ride. You move, a pro-grade AI commentator goes feral. Crowd roars included.
 
 ## The pitch
 
-Put headphones in, put your phone in a chest strap or pocket, tap **GO**, and start moving. STADIUM reads your GPS pace, your accelerometer, and anything you shout into your mic, and produces live play-by-play — the bit where the TV announcer says *"HE'S KICKING! Where is this coming from?! The legs are gone and yet — they keep going!"* — over a loopable crowd-roar bed generated from ElevenLabs Sound Effects.
+Put headphones in, put your phone in a chest strap or pocket, tap **GO**, and start moving. STADIUM reads your GPS pace, your accelerometer, and anything you shout into your mic, and produces live play-by-play — the bit where the TV announcer says *"HE'S KICKING! Where is this coming from?! The legs are gone and yet — they keep going!"* — over a loopable crowd-roar bed.
 
 The UI is designed to look good on a phone held out at arm's length while you are literally running down the street filming it. This is the viral video.
 
@@ -18,9 +14,10 @@ The UI is designed to look good on a phone held out at arm's length while you ar
 
 | Layer | Tech |
 |---|---|
-| Voice commentary | ElevenLabs TTS (`eleven_multilingual_v2`) with configurable voice + hype-driven style |
+| Voice commentary | ElevenLabs TTS (`eleven_turbo_v2_5`) with configurable voice + hype-driven style |
 | Stadium crowd bed | ElevenLabs Sound Generation (`/v1/sound-generation`) — generated once, looped |
 | Live signals | `navigator.geolocation.watchPosition`, `DeviceMotionEvent`, Web Speech API |
+| Screen awake | `navigator.wakeLock` holds the screen on for the whole run |
 | State machine | Template-driven commentary engine with pace-change, milestone, and user-quote triggers |
 | UI | React 19 · Vite · Tailwind CSS v4 · Framer Motion |
 
@@ -29,12 +26,16 @@ No API key? The app still runs in **demo voice mode** using the browser's built-
 ## Quickstart
 
 ```bash
+cp .env.example .env
+# paste your ElevenLabs key into VITE_ELEVENLABS_API_KEY
 npm install
 npm run dev
-# open http://localhost:5173 on your phone
+# open http://localhost:5173 on your phone (HTTPS required on iOS)
 ```
 
-Open **Settings** and paste an ElevenLabs API key (it stays in `localStorage`, never leaves the browser). Pick a voice, set your athlete name, crank the hype level, hit **GO**.
+Alternatively, open **Settings** in the app and paste a key there — it stays in `localStorage`. The env var is just a convenience so you don't have to paste on every deploy.
+
+> **Warning:** because this is a static Vite build, `VITE_*` env vars end up in the client bundle. That's fine for a throwaway demo URL; for a real deployment proxy the key through a serverless function instead.
 
 ## Demo controls (useful indoors)
 
@@ -64,7 +65,7 @@ The commentary engine (`lib/commentary.ts`) is intentionally **pure** — `decid
 
 ## Spec-driven development
 
-This project was built from the spec in [`SPEC.md`](./SPEC.md), following Kiro's requirements → design → tasks flow. See that file for the original EARS-style acceptance criteria and the task breakdown.
+This project was built from the spec in [`SPEC.md`](./SPEC.md) — requirements → design → tasks with EARS-style acceptance criteria. The pure `decide(state, signal)` function in `lib/commentary.ts` is intentionally testable in isolation so the behavior R1–R5 can be pinned without mocking audio.
 
 ## Viral playbook
 
@@ -74,4 +75,4 @@ This project was built from the spec in [`SPEC.md`](./SPEC.md), following Kiro's
 4. Tap **GO** and start running.
 5. Shout something absurd into your collar mic every ~30 seconds. The broadcast will quote you.
 6. Hit **LINE HYPE** right as you cross a landmark.
-7. Post it with `#ElevenHacks` · `#CodeWithKiro`. Tag `@elevenlabsio` and `@kirodotdev`.
+7. Post it.

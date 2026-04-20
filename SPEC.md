@@ -1,7 +1,7 @@
 # STADIUM — Spec
 
-Spec-driven development doc. Requirements → Design → Tasks, following Kiro's
-three-phase flow. Acceptance criteria use EARS-style phrasing.
+Spec-driven development doc. Requirements → Design → Tasks. Acceptance
+criteria use EARS-style phrasing.
 
 ## 1. Problem
 
@@ -22,9 +22,9 @@ connection.
 ## 3. Requirements (EARS)
 
 ### 3.1 Broadcast loop
-- **R1.** When the athlete taps **GO**, the system shall request motion and
-  microphone permissions, play a live crowd bed within 2 seconds, and produce
-  its first play-by-play line within 4 seconds.
+- **R1.** When the athlete taps **GO**, the system shall acquire a screen
+  wake lock, request motion and microphone permissions, play a live crowd bed
+  within 2 seconds, and produce its first play-by-play line within 4 seconds.
 - **R2.** While the athlete is moving, the system shall emit a new commentary
   line at least once every 60 seconds at hype level 1 and at least once every
   22 seconds at hype level 5, so long as a prior line is not still being spoken.
@@ -47,17 +47,18 @@ connection.
   screen radial flash so that short camera clips show clear "big moment" cues.
 
 ### 3.3 Offline & no-key fallbacks
-- **R9.** If no ElevenLabs API key is configured, the system shall still run
-  the full broadcast loop using the browser's `speechSynthesis` for the voice
-  and a procedural pink-noise bed for the crowd, so users can evaluate the app
-  without a paid account.
+- **R9.** If no API key is configured, the system shall still run the full
+  broadcast loop using the browser's `speechSynthesis` for the voice and a
+  procedural pink-noise bed for the crowd.
 - **R10.** If the Web Speech API is not available, the system shall continue to
   function without microphone-driven lines.
+- **R11.** If a configured key is rejected mid-session, the system shall fall
+  back to `speechSynthesis` for the current line, surface a visible error
+  banner, and keep the broadcast alive.
 
 ### 3.4 Privacy
-- **R11.** The ElevenLabs API key shall be stored only in the browser's
-  `localStorage` and shall never be transmitted to a first-party server
-  belonging to this project.
+- **R12.** The API key shall only ever be read from `localStorage` or a
+  build-time `VITE_*` env var, never transmitted to a first-party server.
 
 ## 4. Design decisions
 
@@ -79,7 +80,7 @@ connection.
   plus per-branch `initial/animate` produces the same visual effect without
   the coordination overhead.
 
-## 5. Task breakdown (Kiro task list)
+## 5. Task breakdown
 
 1. Scaffold Vite + React-TS, wire Tailwind v4, set mobile viewport + safe-area.
 2. Broadcast theme tokens (blaze / volt / chalk / ink) + grain + scanline CSS.
@@ -88,18 +89,20 @@ connection.
 5. `lib/speech.ts` — Web Speech API wrapper with auto-restart + graceful absence.
 6. `lib/commentary.ts` — pure `decide()` engine + builders for every trigger.
 7. `lib/ambient.ts` — crowd bed loader (SFX when key available, pink noise when not).
-8. `hooks/useBroadcast.ts` — orchestration: tick loop, speak queue, history.
-9. Components: Scoreboard, CaptionStream, SessionLog, HypeMeter, FlashOverlay,
-   SettingsSheet, BroadcastButton, Ticker.
-10. Landing page (hero + ticker + pillars) and settings sheet (key verify).
-11. Recursive mobile testing in Chrome with 430×900 viewport.
-12. Polish pass: hype meter, session log, flash overlay, `LINE HYPE` force button.
+8. `lib/wakelock.ts` — screen wake lock wrapper, re-acquires on visibility change.
+9. `hooks/useBroadcast.ts` — orchestration: tick loop, speak queue, history, wake lock.
+10. Components: Scoreboard, CaptionStream, SessionLog, HypeMeter, FlashOverlay,
+    SettingsSheet, BroadcastButton, Ticker.
+11. Landing page (hero + ticker + pillars) and settings sheet (key verify).
+12. Recursive mobile testing in Chrome with 430×900 viewport.
+13. Polish pass: hype meter, session log, flash overlay, `LINE HYPE` force button.
+14. Production readiness: env var support, turbo model default, PWA manifest.
 
-## 6. Open work (post-hackathon)
+## 6. Open work
 
 - Record the whole broadcast (ambient + commentary) via `MediaRecorder` piped
   through a Web Audio graph, export a share-ready MP3/MP4.
-- ElevenLabs Conversational AI (Convai) mode that keeps context across the
-  whole run and reacts to mic input with real dialog.
-- Generative music bed from ElevenLabs Music API, beat-matched to pace bands.
+- Conversational AI mode that keeps context across the whole run and reacts
+  to mic input with real dialog instead of quoted-template lines.
+- Generative music bed, beat-matched to pace bands.
 - "Photo finish" share card: current HUD + last line rendered to a PNG.

@@ -1,11 +1,10 @@
 const PHRASES = [
   "★ BROADCASTING EVERY STEP ★",
   "BUILT FOR RUNNERS · WALKERS · RIDERS",
-  "POWERED BY ELEVENLABS",
-  "SPEC-DRIVEN WITH KIRO",
   "YOU ARE NOT JOGGING — YOU ARE COMPETING",
+  "THE CROWD CAME TO SEE YOU",
   "IF THEY LAUGH, YOU WIN",
-  "#ElevenHacks · #CodeWithKiro",
+  "DRAMA · PACE · HYPE · REPEAT",
 ];
 
 export function Ticker({ accent = "blaze" }: { accent?: "blaze" | "volt" }) {
