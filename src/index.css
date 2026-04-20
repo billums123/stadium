@@ -1,0 +1,121 @@
+@import "tailwindcss";
+
+@layer theme {
+  :root {
+    --color-ink: #050505;
+    --color-ink-2: #0b0b0e;
+    --color-line: #1a1a1d;
+    --color-chalk: #f5f2e8;
+    --color-blaze: #ff3b1f;
+    --color-volt: #f5ff1f;
+    --color-turf: #0e3a1a;
+    --color-crowd: #8a8880;
+  }
+}
+
+@font-face {
+  font-family: "Display";
+  src: local("Bebas Neue"), local("Anton"), local("Oswald"), local("Impact"), local("Arial Black");
+  font-weight: 400 900;
+  font-display: swap;
+}
+
+html, body, #root {
+  height: 100%;
+  min-height: 100dvh;
+  background: #050505;
+  color: #f5f2e8;
+}
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+.font-display {
+  font-family: "Bebas Neue", "Anton", "Oswald", "Impact", "Arial Black", system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  font-weight: 800;
+}
+
+.font-mono {
+  font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+.stadium-grain {
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(255, 59, 31, 0.10), transparent 40%),
+    radial-gradient(circle at 80% 90%, rgba(245, 255, 31, 0.06), transparent 45%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 3px);
+}
+
+.scanline::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.03) 0,
+    rgba(255, 255, 255, 0.03) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  mix-blend-mode: overlay;
+}
+
+.crt::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  pointer-events: none;
+  box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.9);
+  border-radius: inherit;
+}
+
+@keyframes ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.ticker-track {
+  display: inline-flex;
+  animation: ticker 38s linear infinite;
+  white-space: nowrap;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 0.7; }
+  70% { transform: scale(2.2); opacity: 0; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+.pulse-ring {
+  animation: pulse-ring 1.8s cubic-bezier(0.22,1,0.36,1) infinite;
+}
+
+@keyframes shake {
+  0%,100% { transform: translate(0,0); }
+  20% { transform: translate(-4px, 3px); }
+  40% { transform: translate(3px, -2px); }
+  60% { transform: translate(-2px, 3px); }
+  80% { transform: translate(3px, -1px); }
+}
+.shake {
+  animation: shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+@keyframes flicker {
+  0%, 92%, 100% { opacity: 1; }
+  95% { opacity: 0.6; }
+  97% { opacity: 0.95; }
+}
+.flicker { animation: flicker 3.5s infinite; }
+
+::selection { background: #ff3b1f; color: #050505; }
