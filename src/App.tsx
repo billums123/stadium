@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { useSettings } from "./lib/store";
 import { useBroadcast } from "./hooks/useBroadcast";
 import { Scoreboard } from "./components/Scoreboard";
@@ -32,40 +32,36 @@ function App() {
       <TopBar onOpenSettings={() => setSettingsOpen(true)} phase={status.phase} />
 
       <main className="mx-auto flex w-full max-w-xl flex-col gap-4 px-4 pb-28 pt-3">
-        <AnimatePresence mode="wait">
-          {screen === "landing" ? (
-            <motion.div
-              key="landing"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.35 }}
-              className="flex flex-col gap-4"
-            >
-              <Hero />
-              <Ticker />
-              <Pillars />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="live"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.35 }}
-              className="flex flex-col gap-4"
-            >
-              <Scoreboard status={status} athleteName={settings.athleteName} />
-              <CaptionStream line={status.lastLine} speaking={status.speaking} />
-              <MicCard interim={status.interim} transcript={status.transcript} dot={micDot} />
-              {status.error && (
-                <div className="rounded-lg border border-[var(--color-blaze)]/60 bg-[var(--color-blaze)]/10 px-3 py-2 text-sm text-[var(--color-chalk)]">
-                  ⚠ {status.error}
-                </div>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {screen === "landing" ? (
+          <motion.div
+            key="landing"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="flex flex-col gap-4"
+          >
+            <Hero />
+            <Ticker />
+            <Pillars />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="live"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="flex flex-col gap-4"
+          >
+            <Scoreboard status={status} athleteName={settings.athleteName} />
+            <CaptionStream line={status.lastLine} speaking={status.speaking} />
+            <MicCard interim={status.interim} transcript={status.transcript} dot={micDot} />
+            {status.error && (
+              <div className="rounded-lg border border-[var(--color-blaze)]/60 bg-[var(--color-blaze)]/10 px-3 py-2 text-sm text-[var(--color-chalk)]">
+                ⚠ {status.error}
+              </div>
+            )}
+          </motion.div>
+        )}
       </main>
 
       <BottomBar

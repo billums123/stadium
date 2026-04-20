@@ -97,8 +97,11 @@ export function useBroadcast(settings: Settings) {
 
     try {
       crowdAudioRef.current = await loadCrowdBed(settings.elevenKey || null);
-      try { await crowdAudioRef.current.play(); } catch { /* gesture required */ }
-    } catch { /* skip crowd bed */ }
+      crowdAudioRef.current.play().catch(() => { /* autoplay blocked or still decoding */ });
+    } catch (e) {
+      // silent — crowd bed is optional
+      void e;
+    }
 
     const tracker = createMotionTracker((m) => {
       motionRef.current = m;
