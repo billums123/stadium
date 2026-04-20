@@ -1,9 +1,17 @@
 /**
  * Commentary engine. Watches motion + speech signals and produces broadcast lines.
- * Entirely template-driven so the app works offline of any LLM.
+ *
+ * Two voices share the mic: the play-by-play commentator drives the urgent
+ * beats (openings, pace surges, milestones, quotes), and a color commentator
+ * adds a drier one-liner between plays. Both are pure template builders —
+ * easy to swap to Convai later, easy to test now.
+ *
+ * Requirement traces use the `// R{n}` convention from
+ * .kiro/specs/stadium/requirements.md.
  */
 
 import type { MotionState } from "./motion";
+import type { Career } from "./career";
 
 export type Signal = {
   athleteName: string;
@@ -12,9 +20,13 @@ export type Signal = {
   lastTranscriptAgeMs: number;
   elapsedInSessionMs: number;
   hypeLevel: number; // 1-5
+  career: Career;
 };
 
+export type Voice = "play" | "color";
+
 export type Trigger =
+  | "cold-open"
   | "opening"
   | "quote"
   | "pace-surge"
@@ -23,13 +35,14 @@ export type Trigger =
   | "milestone-km"
   | "check-in"
   | "surroundings"
-  | "ad-break"
   | "weather"
   | "finish-strong"
+  | "color-aside"
   | "signoff";
 
 export type Line = {
   trigger: Trigger;
+  voice: Voice;
   text: string;
   urgency: 1 | 2 | 3; // 1 low, 3 dramatic
 };
@@ -54,199 +67,306 @@ function paceWord(kmh: number) {
   }[pace(kmh)];
 }
 
-const HYPE_PREFIXES = [
-  "Ladies and gentlemen,",
+function ordinal(n: number) {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+// Prefixes live in a small pool, used sparingly — overuse turns the
+// commentator into a shouty GIF. See anti-cheese notes in design.md.
+const PLAY_PREFIXES = [
   "Folks,",
   "Oh my word —",
-  "Can you believe this?",
   "Coming to you LIVE,",
-  "Unbelievable scenes —",
-  "The crowd is on its feet —",
-  "Are you watching this?",
-  "I cannot stress this enough —",
-  "Every pundit in the booth has gone quiet —",
-  "This is the moment —",
-  "Take a breath, because —",
-  "History is watching —",
-  "The commentators are speechless —",
+  "This just in —",
+  "On the broadcast,",
 ];
 
+function maybePrefix(prob = 0.35): string {
+  return Math.random() < prob ? rand(PLAY_PREFIXES) + " " : "";
+}
+
+// ─── R1: Cold-open (pre-game show) ─────────────────────────────────────
+export function coldOpenScript(s: Signal): Line[] {
+  const name = s.athleteName;
+  const careerTag =
+    s.career.sessions === 0
+      ? `a debut — no prior broadcasts on record`
+      : s.career.sessions === 1
+      ? `their second broadcast — the follow-up album`
+      : `broadcast number ${s.career.sessions + 1}, ${Math.round(s.career.totalKm)} lifetime kilometres on the board`;
+
+  const hour = new Date().getHours();
+  const slot =
+    hour < 6 ? "the pre-dawn slot" :
+    hour < 11 ? "the morning show" :
+    hour < 14 ? "the midday broadcast" :
+    hour < 18 ? "the afternoon card" :
+    hour < 22 ? "primetime" :
+    "the late-night edition";
+
+  return [
+    {
+      trigger: "cold-open",
+      voice: "play",
+      urgency: 3,
+      text: `Good evening, good morning, or good afternoon — welcome to STADIUM. You are tuned in to ${slot}. Tonight's main event: ${name}.`,
+    },
+    {
+      trigger: "cold-open",
+      voice: "color",
+      urgency: 2,
+      text: `That's ${careerTag}. Conditions on the ground: looking frankly ideal.`,
+    },
+    {
+      trigger: "cold-open",
+      voice: "play",
+      urgency: 3,
+      text: `We are live in three. Two. One. And we are underway.`,
+    },
+  ];
+}
+
+// ─── R2: Opening (after cold open if present, otherwise first line) ────
 export function buildOpening(s: Signal): Line {
   const name = s.athleteName;
   const opts = [
-    `${rand(HYPE_PREFIXES)} welcome to STADIUM. Today's main event — ${name}. Weather: irrelevant. Stakes: everything. Broadcast is LIVE.`,
-    `Good evening, good morning, good afternoon — depending on when and where you're watching. You are tuned in to STADIUM. The athlete tonight: ${name}. Let's get underway.`,
-    `We are on the air. ${rand(HYPE_PREFIXES)} ${name} is in the tunnel. ${name} is crossing the line. ${name} is — well, ${name} is moving. This is STADIUM.`,
-    `${rand(HYPE_PREFIXES)} it is a beautiful day for this. The sky is doing its thing. The birds are present. And in the middle of it all — ${name}. Broadcast: LIVE.`,
+    `And we're back. ${name}, out of the tunnel, onto the pavement. Let's call it.`,
+    `${name} — in position. Everything is exactly as it should be. Almost suspiciously so.`,
+    `Right. ${name} is moving. The clock is running. The broadcast is ours.`,
+    `The stage is set. ${name} has arrived. The competition — honestly, unclear. But ${name} has arrived.`,
   ];
-  return { trigger: "opening", urgency: 3, text: rand(opts) };
+  return { trigger: "opening", voice: "play", urgency: 3, text: rand(opts) };
 }
 
+// ─── R5: Quote ─────────────────────────────────────────────────────────
 export function buildQuote(s: Signal): Line {
   const q = (s.lastTranscript || "").slice(0, 140);
   const name = s.athleteName;
   const opts = [
-    `${name} speaks: "${q}" — the stadium falls silent.`,
-    `Into the mic now — ${name}: "${q}". Will history remember this line? Almost certainly yes.`,
-    `"${q}" — you heard it here first. Poetry in motion.`,
-    `${name} with a direct quote for the record: "${q}". The commentators look at each other, speechless.`,
-    `A statement from the athlete: "${q}". We will be unpacking this for weeks.`,
-    `${name} addressing the crowd: "${q}". Electric. Simply electric.`,
-    `Mid-stride, ${name} finds the words: "${q}". Put that on a poster.`,
-    `"${q}" — a quote that will define the broadcast.`,
+    `${name} on the mic: "${q}".`,
+    `Statement from the competitor: "${q}". Put it on the wall.`,
+    `${name} goes on record: "${q}". The press box is silent.`,
+    `A line from ${name} — "${q}". We'll be quoting that one for weeks.`,
+    `Mid-stride, ${name} lands it: "${q}". Beautiful.`,
   ];
-  return { trigger: "quote", urgency: 2, text: rand(opts) };
+  return { trigger: "quote", voice: "play", urgency: 2, text: rand(opts) };
 }
 
+// ─── R3: Pace surge ────────────────────────────────────────────────────
 export function buildPaceSurge(s: Signal): Line {
   const kmh = s.motion.paceKmh.toFixed(1);
   const name = s.athleteName;
   const opts = [
-    `${rand(HYPE_PREFIXES)} ${name} is KICKING! Up to ${kmh} kilometres per hour — where is this coming from?! The legs are GONE and yet — they keep going!`,
-    `${rand(HYPE_PREFIXES)} ${name} has found another gear. ${kmh} kilometres per hour. The scouts are on their feet.`,
-    `A surge! A beautiful, unscheduled surge. ${name} at ${kmh} kilometres per hour. Somebody notify the press.`,
-    `${name} has seen something. Maybe a goal line, maybe a dog — whatever it is, they are now at ${kmh} kilometres per hour.`,
-    `${rand(HYPE_PREFIXES)} did you see that shift? ${kmh} kilometres per hour. This is not a drill.`,
-    `Out of nowhere — ${kmh}. ${name} has decided today is the day. I am getting chills. I am, on-air, getting chills.`,
+    `${maybePrefix()}${name} has found another gear. ${kmh} kilometres an hour. Where was that being kept.`,
+    `A shift. ${name} at ${kmh}. Somebody has decided today is the day.`,
+    `${maybePrefix()}that's a surge. ${kmh}. Not scheduled. Very welcome.`,
+    `${name} up to ${kmh}. The scouts just quietly moved forward one row.`,
+    `Second gear engaged. ${kmh} kmh. We are witnessing something.`,
   ];
-  return { trigger: "pace-surge", urgency: 3, text: rand(opts) };
+  return { trigger: "pace-surge", voice: "play", urgency: 3, text: rand(opts) };
 }
 
+// ─── R3: Pace crash (measured, not panicked) ──────────────────────────
 export function buildPaceCrash(s: Signal): Line {
   const kmh = s.motion.paceKmh.toFixed(1);
   const name = s.athleteName;
   const opts = [
-    `A concerning dip. ${name} has slowed to ${kmh} kilometres per hour. The bench is worried. The dog is worried. We are all worried.`,
-    `We are witnessing a recalibration. ${kmh} kilometres per hour. ${name} is playing chess out there, not checkers. Presumably.`,
-    `${name} at ${kmh}. This is what the pundits call a strategic breather. Or — and I hesitate to say this — a vibe shift.`,
-    `Slight wobble. ${kmh} kilometres per hour. The crowd leans in. Nobody dares speak.`,
-    `Pace check — ${kmh}. ${name} is saving something for later. Has to be. Right? Right?`,
+    `Slight dip. ${name} at ${kmh}. Strategic, presumably.`,
+    `${kmh} kilometres an hour now. A recalibration. No cause for alarm, he says, checking the time.`,
+    `Pace check: ${kmh}. Saving something for the stretch, is the generous reading.`,
+    `A breather at ${kmh}. The kind champions take. Allegedly.`,
   ];
-  return { trigger: "pace-crash", urgency: 2, text: rand(opts) };
+  return { trigger: "pace-crash", voice: "play", urgency: 2, text: rand(opts) };
 }
 
+// ─── R2: Steady state ──────────────────────────────────────────────────
 export function buildSteady(s: Signal): Line {
   const kmh = s.motion.paceKmh.toFixed(1);
   const name = s.athleteName;
   const opts = [
-    `${name} settling into ${paceWord(s.motion.paceKmh)} — ${kmh} kilometres per hour. Textbook form. The scouts are watching.`,
-    `A steady ${kmh}. ${name} in the zone they call — let's call it — "the good one". Lovely stuff.`,
-    `Metronomic. ${kmh} kilometres per hour. ${name} could do this in their sleep. They are possibly doing this in their sleep.`,
-    `Rhythm established at ${kmh}. The kind of pace that wins championships. Not necessarily this one, but — championships.`,
+    `${name} settled into ${paceWord(s.motion.paceKmh)} — ${kmh} on the clock.`,
+    `Holding ${kmh}. Rhythmic. The kind of pace you'd describe as "fine", in a good way.`,
+    `Steady ${kmh} kmh. ${name} doing what ${name} does.`,
+    `${kmh} and quiet. Form looks intact. We are, if nothing else, consistent.`,
   ];
-  return { trigger: "steady", urgency: 1, text: rand(opts) };
+  return { trigger: "steady", voice: "play", urgency: 1, text: rand(opts) };
 }
 
+// ─── R4: Kilometre milestone ───────────────────────────────────────────
 export function buildMilestoneKm(s: Signal, km: number): Line {
   const name = s.athleteName;
   const opts = [
-    `KILOMETRE ${km} — in the books. ${name} crosses the line, the crowd ERUPTS — they came here to see something special, and they are getting it.`,
-    `That's kilometre ${km}. Write it down. Frame it. ${name} does it again.`,
-    `${rand(HYPE_PREFIXES)} ${km} kilometres. Zero doubt. All conviction. This is what we came for.`,
-    `Mark it — kilometre ${km}. The clock did not matter. Only the achievement. ${name}, take a bow.`,
-    `Ladies and gentlemen, ${km} kilometres. ${name} is doing — and I want to be careful with this word — HISTORY.`,
+    `${ordinal(km)} kilometre — banked. ${name} ticks it off.`,
+    `That's ${km} in the book. ${name} does not look up. ${name} is locked in.`,
+    `${maybePrefix()}${km} kilometres. A round number in a round world.`,
+    `Mark it: kilometre ${km}. Put it in the ledger.`,
+    `${km} down. ${name} crosses the invisible line, the universe nods.`,
   ];
-  return { trigger: "milestone-km", urgency: 3, text: rand(opts) };
+  return { trigger: "milestone-km", voice: "play", urgency: 3, text: rand(opts) };
 }
 
+// ─── R2: Check-in ──────────────────────────────────────────────────────
 export function buildCheckIn(s: Signal): Line {
   const mins = Math.floor(s.motion.elapsedMs / 60000);
   const name = s.athleteName;
   const opts = [
-    `${mins} minutes in. ${name} looks focused. Locked in. The commentators exchange a nod.`,
-    `The clock reads ${mins} minutes. The lungs are working. The playlist is peaking. We are in the thick of it.`,
-    `We are ${mins} minutes into the performance of ${name}'s career — and this broadcast stands behind every step.`,
-    `${mins} minutes down. ${name} has that look. You know the look. We all know the look.`,
-    `Clock check: ${mins} minutes. This is the part of the documentary where the music starts to swell.`,
-    `${mins} on the clock. ${name} remembers why they started this. We do too. It was about three minutes ago.`,
+    `${mins} minutes in. ${name} has the look.`,
+    `Clock reads ${mins}. Nobody has said anything stupid yet. Promising.`,
+    `We are ${mins} minutes into whatever this is. ${name} is, so far, winning it.`,
+    `${mins} on the clock. The documentary crew would be getting excited right about now.`,
   ];
-  return { trigger: "check-in", urgency: 1, text: rand(opts) };
+  return { trigger: "check-in", voice: "play", urgency: 1, text: rand(opts) };
 }
 
-export function buildSurroundings(s: Signal): Line {
-  const name = s.athleteName;
+// ─── R6: Surroundings (dry flavour, strongest voice in the pool) ───────
+export function buildSurroundings(_s: Signal): Line {
   const opts = [
-    `A pedestrian has stopped to watch. They did not know today was going to go this way. None of us did.`,
-    `A dog has taken notice of ${name}. Tail wagging. Absolute respect from the canine community.`,
-    `Somewhere, a traffic light turns green at exactly the right moment. The universe approves.`,
+    `A dog three houses back has taken notice. Absolute respect from the canine community.`,
+    `A pedestrian has paused. They did not know today was going to go this way.`,
+    `A traffic light has turned green at exactly the right moment. The universe is collaborating.`,
     `A squirrel just witnessed pace. It will tell its friends. Its friends will not believe it.`,
-    `A driver at a stop sign just clapped. ${name} did not notice. ${name} is locked in.`,
-    `Two cyclists have just been passed in spirit, if not in distance. They are thinking about their choices.`,
-    `A parent pushing a pram has nodded. A high honour, in this neighbourhood.`,
+    `A cyclist has just been passed in spirit, if not in distance. They are reflecting.`,
+    `A parent with a pram has nodded. A high honour in this neighbourhood.`,
+    `Somebody opened a window. A small ovation.`,
+    `A cat on a stoop, indifferent. A small defeat, fairly handled.`,
+    `Two joggers coming the other way. Acknowledgement, mutual. Respect, assumed.`,
   ];
-  return { trigger: "surroundings", urgency: 2, text: rand(opts) };
+  return { trigger: "surroundings", voice: "color", urgency: 2, text: rand(opts) };
 }
 
-export function buildAdBreak(_s: Signal): Line {
-  const opts = [
-    `Brief word from our sponsors: LEGS. Keep using them. Back to the action.`,
-    `This segment brought to you by OXYGEN — still free, still essential, still available at all major locations.`,
-    `STADIUM is brought to you by STADIUM. The name of the app you are using. Thank you for using it.`,
-    `A message from our partners: hydrate. That was the message. Back to the broadcast.`,
-    `Sponsored by SHOES. Revolutionary foot technology. You may already be wearing some.`,
-  ];
-  return { trigger: "ad-break", urgency: 2, text: rand(opts) };
-}
-
+// ─── R6: Weather beat ─────────────────────────────────────────────────
 export function buildWeather(_s: Signal): Line {
   const opts = [
-    `Weather report from the stadium: breezy. With a chance of personal record.`,
-    `Conditions: excellent. For whom? For the athlete. As it should be.`,
-    `Meteorological update: the sky is doing the sky thing. No complaints from the competitor.`,
-    `Weather: vibes are mild, hype is high. Textbook.`,
+    `Conditions: the sky is doing the sky thing. No complaints from the competitor.`,
+    `Weather report: breezy, with a chance of personal record.`,
+    `Meteorological note: currently, it is outside.`,
+    `The forecast held. That's one box ticked.`,
   ];
-  return { trigger: "weather", urgency: 1, text: rand(opts) };
+  return { trigger: "weather", voice: "color", urgency: 1, text: rand(opts) };
 }
 
+// ─── R6: Finish-strong (past 20 min mark) ─────────────────────────────
 export function buildFinishStrong(s: Signal): Line {
   const name = s.athleteName;
   const opts = [
-    `Final stretch. This is the moment. Everything ${name} has trained for — and by "trained" we mean "opened this app" — it was all for this.`,
-    `${rand(HYPE_PREFIXES)} we are approaching the close. ${name} with one more push in them. Maybe two. Let's not commit to two.`,
-    `Home straight. The crowd stands. The commentator stands. The neighbour's cat stands. ${name} does not stand, because ${name} is still moving.`,
-    `We're in the final minutes. ${name} has that look of someone about to earn a shower they will remember.`,
+    `Home stretch now. ${name} with one more push — possibly two. Let's not commit to two.`,
+    `We're in the closing minutes. ${name} has the look of someone about to earn a shower they'll remember.`,
+    `${maybePrefix()}final section. Everything ${name} has opened this app for — it was all for this.`,
+    `Final stretch. Crowd stands. Neighbour's cat stands. ${name} does not stand, ${name} is still moving.`,
   ];
-  return { trigger: "finish-strong", urgency: 3, text: rand(opts) };
+  return { trigger: "finish-strong", voice: "play", urgency: 3, text: rand(opts) };
 }
 
+// ─── Color commentator's dry asides ────────────────────────────────────
+// Fire after a play-by-play line to add a second-voice beat.
+export function buildColorAside(_s: Signal, last: Line | null): Line {
+  const opts: string[] = [];
+
+  if (last?.trigger === "pace-surge") {
+    opts.push(
+      `Worth noting — that effort will be paid for later. But tonight, we celebrate.`,
+      `Statistically, nobody asked for that. But here we are.`,
+      `A risky play. Aesthetic merit: high.`
+    );
+  } else if (last?.trigger === "pace-crash") {
+    opts.push(
+      `In the booth we call this "the middle". It is a valid place to be.`,
+      `The body is asking a question. The body does not always love the answer.`,
+      `Pace fluctuates, as does the human spirit.`
+    );
+  } else if (last?.trigger === "milestone-km") {
+    opts.push(
+      `One more for the ledger. The ledger is growing.`,
+      `A kilometre is a kilometre, and we should not be glib about that.`,
+      `Quietly: that's a real achievement, and nobody here is being sarcastic.`
+    );
+  } else if (last?.trigger === "quote") {
+    opts.push(
+      `Big words, delivered under cardiovascular duress. That's commitment.`,
+      `You heard it live. We can't unhear it.`,
+      `The quote stands. The context — evolving.`
+    );
+  } else if (last?.trigger === "opening" || last?.trigger === "cold-open") {
+    opts.push(
+      `I'll say this: the energy coming into the studio today is extraordinary.`,
+      `Low-key, I think this one's going to hit differently.`,
+      `Conditions look favourable. The vibe is tentatively pro-athlete.`
+    );
+  } else {
+    opts.push(
+      `For context, I haven't had coffee yet. Neither has the athlete.`,
+      `The commentary remains guardedly optimistic.`,
+      `Nothing to add from my desk, which — if I'm honest — is rare.`,
+      `I've been doing this a long time. This is a version of it.`
+    );
+  }
+
+  return { trigger: "color-aside", voice: "color", urgency: 1, text: rand(opts) };
+}
+
+// ─── Signoff (R2) ──────────────────────────────────────────────────────
 export function buildSignoff(s: Signal): Line {
   const name = s.athleteName;
   const opts = [
-    `And that is the final whistle. ${name} — what a performance. The scoreboard will never forget. This has been STADIUM. Goodnight, and keep moving.`,
-    `That's your broadcast. ${name}, untouchable today. We will see you for the sequel. Unless this was the sequel — in which case, the trilogy.`,
-    `Sign-off from STADIUM. ${name} wrote a sentence out there, and the crowd — the crowd will read it forever.`,
+    `That's the whistle. ${name}, excellent work. We'll see you next time.`,
+    `Broadcast closes. ${name} wrote a sentence out there, and the crowd will read it forever. Goodnight.`,
+    `Sign-off from STADIUM. ${name} has earned the shower.`,
   ];
-  return { trigger: "signoff", urgency: 3, text: rand(opts) };
+  return { trigger: "signoff", voice: "play", urgency: 3, text: rand(opts) };
 }
 
 export type EngineState = {
+  coldOpenIndex: number;        // -1 done; else index into the cold-open script
   hasOpened: boolean;
-  lastTriggerAt: number; // in session ms
+  lastTriggerAt: number;        // ms in session
   lastPace: number;
   lastKmAnnounced: number;
   cooldownMs: number;
   interludeCount: number;
+  lastVoice: Voice | null;      // to alternate voices
 };
 
 export const INITIAL_ENGINE: EngineState = {
+  coldOpenIndex: 0,
   hasOpened: false,
   lastTriggerAt: -999999,
   lastPace: 0,
   lastKmAnnounced: 0,
-  cooldownMs: 18000, // min gap between lines
+  cooldownMs: 14000, // min gap between lines, tighter since color asides are shorter
   interludeCount: 0,
+  lastVoice: null,
 };
 
 /**
- * Decide whether to emit a line this tick, and which one.
- * Returns null when the engine should stay quiet.
+ * Decide whether to emit a line this tick.
+ *
+ * Order of precedence: cold-open script → athlete quote → color aside
+ * chasing the last play-by-play → milestone → pace surge/crash → filler.
  */
 export function decide(
   state: EngineState,
-  signal: Signal
+  signal: Signal,
+  lastLine: Line | null
 ): { line: Line; next: EngineState } | null {
   const now = signal.elapsedInSessionMs;
   const sinceLast = now - state.lastTriggerAt;
+
+  // R1 — cold-open plays through before the engine takes over.
+  if (state.coldOpenIndex >= 0) {
+    const script = coldOpenScript(signal);
+    const line = script[state.coldOpenIndex];
+    const next: EngineState = {
+      ...state,
+      coldOpenIndex:
+        state.coldOpenIndex + 1 >= script.length ? -1 : state.coldOpenIndex + 1,
+      hasOpened: state.coldOpenIndex + 1 >= script.length ? true : state.hasOpened,
+      lastTriggerAt: now,
+      lastVoice: line.voice,
+    };
+    return { line, next };
+  }
 
   if (!state.hasOpened) {
     const line = buildOpening(signal);
@@ -257,55 +377,68 @@ export function decide(
         hasOpened: true,
         lastTriggerAt: now,
         lastPace: signal.motion.paceKmh,
-        lastKmAnnounced: 0,
+        lastVoice: line.voice,
       },
     };
   }
 
-  // Quote takes priority when fresh transcript arrives.
+  // R5 — quote takes priority when a fresh transcript arrives.
   if (signal.lastTranscript && signal.lastTranscriptAgeMs < 2500 && sinceLast > 6000) {
     const line = buildQuote(signal);
+    return { line, next: bump(state, now, signal.motion.paceKmh, line.voice) };
+  }
+
+  // Two-voice dialog: after a substantial play-by-play line, give the color
+  // voice a short turn before the next full cooldown. One in three beats.
+  if (
+    lastLine &&
+    lastLine.voice === "play" &&
+    state.lastVoice === "play" &&
+    sinceLast > 4500 &&
+    sinceLast < state.cooldownMs &&
+    Math.random() < 0.55
+  ) {
+    const line = buildColorAside(signal, lastLine);
     return {
       line,
-      next: { ...state, lastTriggerAt: now, lastPace: signal.motion.paceKmh },
+      next: { ...state, lastTriggerAt: now, lastVoice: line.voice },
     };
   }
 
   if (sinceLast < state.cooldownMs) return null;
 
+  // R4 — kilometre milestone.
   const km = Math.floor(signal.motion.distanceMeters / 1000);
   if (km > state.lastKmAnnounced && km >= 1) {
     const line = buildMilestoneKm(signal, km);
     return {
       line,
       next: {
-        ...state,
-        lastTriggerAt: now,
-        lastPace: signal.motion.paceKmh,
+        ...bump(state, now, signal.motion.paceKmh, line.voice),
         lastKmAnnounced: km,
       },
     };
   }
 
+  // R3 — pace dynamics.
   const dPace = signal.motion.paceKmh - state.lastPace;
   if (dPace > 2.5 && signal.motion.paceKmh > 8) {
     const line = buildPaceSurge(signal);
-    return { line, next: { ...state, lastTriggerAt: now, lastPace: signal.motion.paceKmh } };
+    return { line, next: bump(state, now, signal.motion.paceKmh, line.voice) };
   }
   if (dPace < -2.5 && state.lastPace > 5) {
     const line = buildPaceCrash(signal);
-    return { line, next: { ...state, lastTriggerAt: now, lastPace: signal.motion.paceKmh } };
+    return { line, next: bump(state, now, signal.motion.paceKmh, line.voice) };
   }
 
-  const cadence = Math.max(18000, 55000 - signal.hypeLevel * 7000);
+  // R2 — steady cadence with flavour rotation.
+  const cadence = Math.max(14000, 48000 - signal.hypeLevel * 6500);
   if (sinceLast > cadence) {
     const line = pickFiller(state, signal);
     return {
       line,
       next: {
-        ...state,
-        lastTriggerAt: now,
-        lastPace: signal.motion.paceKmh,
+        ...bump(state, now, signal.motion.paceKmh, line.voice),
         interludeCount: state.interludeCount + 1,
       },
     };
@@ -314,19 +447,20 @@ export function decide(
   return null;
 }
 
+function bump(state: EngineState, now: number, pace: number, voice: Voice): EngineState {
+  return { ...state, lastTriggerAt: now, lastPace: pace, lastVoice: voice };
+}
+
 /**
- * Picks a steady/check-in/flavour line, weighted so that every ~5 lines
- * the audience gets a sponsor bit, a weather report, or a surroundings
- * gag instead of another pace comment.
+ * R6 — flavour rotation. Weighted toward the color voice's dry beats so the
+ * broadcast doesn't mono-tone into pace comments.
  */
 function pickFiller(state: EngineState, signal: Signal): Line {
   const idx = state.interludeCount;
 
-  if (idx > 0 && idx % 6 === 0) return buildAdBreak(signal);
-  if (idx > 0 && idx % 5 === 0) return buildSurroundings(signal);
-  if (idx > 0 && idx % 7 === 0) return buildWeather(signal);
+  if (idx > 0 && idx % 3 === 0) return buildSurroundings(signal);
+  if (idx > 0 && idx % 5 === 0) return buildWeather(signal);
 
-  // Finish-strong bias if we're past 20 minutes.
   if (signal.motion.elapsedMs > 20 * 60 * 1000 && Math.random() < 0.3) {
     return buildFinishStrong(signal);
   }

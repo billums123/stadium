@@ -25,8 +25,14 @@ Each task maps to one or more EARS requirements from
 | 17 | Commentary pool expansion: 4–8 variants per builder + surroundings / ad-break / weather / finish-strong triggers | R2, R6 | ✅ |
 | 18 | `lib/sharecard.ts` — 1080×1920 canvas render + Web Share / download fallback, wired into the scoreboard | R15, R16 | ✅ |
 | 19 | Music API integration — background fetch, cross-fade in, fade out on stop | R10, R11 | ✅ |
-| 20 | Public HTTPS deploy + real-device QA on iOS Safari and Android Chrome | all | ⏳ |
-| 21 | Capture the viral clip | — | ⏳ |
-| 22 | _(post-hackathon)_ Convai-backed commentary | R2, R5 | — |
-| 23 | _(post-hackathon)_ MediaRecorder export of full session audio | — | — |
-| 24 | _(post-hackathon)_ Proxy the API key through a serverless function | R17 | — |
+| 20 | Anti-cheese pass on commentary pool — dry/observational over hype, tighter variant counts | R2, R6 | ✅ |
+| 21 | Cold-open pre-game show script (network ID → athlete preamble → countdown) | R1 | ✅ |
+| 22 | Two-voice broadcast: play-by-play + color commentator alternation | R2 | ✅ |
+| 23 | Career continuity — sessions / km / peak pace in localStorage, referenced by cold-open | R1 | ✅ |
+| 24 | Kiro trace layer: `// R{n}` inline requirement markers + AGENTS.md | — | ✅ |
+| 25 | Public HTTPS deploy + real-device QA on iOS Safari and Android Chrome | all | 🔨 _in progress_ |
+| 26 | Capture the viral clip | — | 🔨 _in progress_ |
+| 27 | _(post-hackathon)_ Convai-backed commentary, two-agent dialog | R2, R5 | — |
+| 28 | _(post-hackathon)_ MediaRecorder export of full session audio | — | — |
+| 29 | _(post-hackathon)_ Proxy the API key through a serverless function | R17 | — |
+| 30 | _(post-hackathon)_ Pace-band music regeneration every km | R10 | — |

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createMotionTracker, type MotionState } from "../lib/motion";
 import { startSpeechListener } from "../lib/speech";
-import { decide, INITIAL_ENGINE, type Line } from "../lib/commentary";
+import { decide, INITIAL_ENGINE, type Line, type Voice } from "../lib/commentary";
 import { synthesizeSpeech, blobToObjectUrl } from "../lib/elevenlabs";
 import { loadCrowdBed, loadMusicBed, fadeTo } from "../lib/ambient";
 import { acquireWakeLock, type WakeLockHandle } from "../lib/wakelock";
+import { loadCareer, recordSession, saveCareer, type Career } from "../lib/career";
 import type { Settings } from "../lib/store";
 
 export type BroadcastPhase = "idle" | "warming" | "live" | "stopping";
@@ -19,6 +20,7 @@ export type BroadcastStatus = {
   speaking: boolean;
   hypeScore: number; // 0-100, for the scoreboard HUD
   error: string | null;
+  career: Career;
 };
 
 const EMPTY_MOTION: MotionState = {
@@ -34,7 +36,7 @@ const EMPTY_MOTION: MotionState = {
 };
 
 export function useBroadcast(settings: Settings) {
-  const [status, setStatus] = useState<BroadcastStatus>({
+  const [status, setStatus] = useState<BroadcastStatus>(() => ({
     phase: "idle",
     motion: EMPTY_MOTION,
     lastLine: null,
@@ -44,10 +46,14 @@ export function useBroadcast(settings: Settings) {
     speaking: false,
     hypeScore: 0,
     error: null,
-  });
+    career: loadCareer(),
+  }));
 
   const engineRef = useRef({ ...INITIAL_ENGINE });
   const sessionStartRef = useRef(0);
+  const peakKmhRef = useRef(0);
+  const careerRef = useRef<Career>(status.career);
+  const lastLineRef = useRef<Line | null>(null);
   const trackerRef = useRef<ReturnType<typeof createMotionTracker> | null>(null);
   const speechRef = useRef<ReturnType<typeof startSpeechListener> | null>(null);
   const lastTranscriptAtRef = useRef<number>(-999999);
@@ -64,10 +70,16 @@ export function useBroadcast(settings: Settings) {
     setStatus((s) => ({ ...s, ...patch }));
   }, []);
 
+  const voiceForLine = useCallback(
+    (v: Voice) => (v === "color" && settings.colorVoiceId ? settings.colorVoiceId : settings.voiceId),
+    [settings.voiceId, settings.colorVoiceId]
+  );
+
   const speakLine = useCallback(
     async (line: Line) => {
       if (speakingRef.current) return;
       speakingRef.current = true;
+      lastLineRef.current = line;
       setStatus((s) => ({
         ...s,
         lastLine: line,
@@ -80,18 +92,24 @@ export function useBroadcast(settings: Settings) {
           try {
             const blob = await synthesizeSpeech({
               apiKey: settings.elevenKey,
-              voiceId: settings.voiceId,
+              voiceId: voiceForLine(line.voice),
               text: line.text,
-              style: Math.min(0.95, 0.55 + (settings.hypeLevel - 3) * 0.1),
-              stability: Math.max(0.15, 0.45 - (settings.hypeLevel - 3) * 0.05),
+              // Color voice leans drier/stabler; play-by-play leans expressive.
+              style:
+                line.voice === "color"
+                  ? 0.3
+                  : Math.min(0.95, 0.55 + (settings.hypeLevel - 3) * 0.1),
+              stability:
+                line.voice === "color"
+                  ? 0.55
+                  : Math.max(0.15, 0.45 - (settings.hypeLevel - 3) * 0.05),
             });
             const url = blobToObjectUrl(blob);
             await playUrl(url, speechAudioRef);
             URL.revokeObjectURL(url);
             setPartial({ error: null });
           } catch (err) {
-            // Fall back to browser voice so the broadcast doesn't die silently,
-            // but surface the failure so the user knows to fix their key.
+            // Keep the broadcast alive; surface the failure for the user.
             setPartial({ error: (err as Error).message });
             if ("speechSynthesis" in window) await browserSpeak(line.text);
           }
@@ -103,28 +121,27 @@ export function useBroadcast(settings: Settings) {
         setPartial({ speaking: false });
       }
     },
-    [settings.elevenKey, settings.voiceId, settings.hypeLevel, setPartial]
+    [settings.elevenKey, settings.hypeLevel, setPartial, voiceForLine]
   );
 
   const start = useCallback(async () => {
     setPartial({ phase: "warming", error: null });
     engineRef.current = { ...INITIAL_ENGINE };
+    lastLineRef.current = null;
+    peakKmhRef.current = 0;
     sessionStartRef.current = performance.now();
 
-    // Keep the screen awake for the whole session — a dimmed phone = dead broadcast.
+    // R1 — hold the screen awake for the whole session.
     wakeLockRef.current = await acquireWakeLock();
 
     try {
       crowdAudioRef.current = await loadCrowdBed(settings.elevenKey || null);
-      crowdAudioRef.current.play().catch(() => { /* autoplay blocked or still decoding */ });
+      crowdAudioRef.current.play().catch(() => { /* decoding / autoplay */ });
     } catch (e) {
-      // silent — crowd bed is optional
       void e;
     }
 
-    // Music bed loads in the background after the session is already live; if
-    // it succeeds we fade it in underneath the commentary, if it fails we just
-    // ride the crowd bed alone.
+    // R10/R11 — optional music bed, cross-fades in when ready.
     if (settings.elevenKey) {
       void (async () => {
         const music = await loadMusicBed(settings.elevenKey);
@@ -141,6 +158,7 @@ export function useBroadcast(settings: Settings) {
 
     const tracker = createMotionTracker((m) => {
       motionRef.current = m;
+      if (m.paceKmh > peakKmhRef.current) peakKmhRef.current = m.paceKmh;
       setPartial({ motion: m });
     });
     trackerRef.current = tracker;
@@ -160,38 +178,35 @@ export function useBroadcast(settings: Settings) {
     tickRef.current = window.setInterval(() => {
       const elapsed = performance.now() - sessionStartRef.current;
       const lastTranscriptAgeMs = performance.now() - lastTranscriptAtRef.current;
-      const result = decide(engineRef.current, {
-        athleteName: settings.athleteName || "THE ATHLETE",
-        motion: motionRef.current,
-        lastTranscript: transcriptRef.current || null,
-        lastTranscriptAgeMs,
-        elapsedInSessionMs: elapsed,
-        hypeLevel: settings.hypeLevel,
-      });
+      const result = decide(
+        engineRef.current,
+        {
+          athleteName: settings.athleteName || "THE ATHLETE",
+          motion: motionRef.current,
+          lastTranscript: transcriptRef.current || null,
+          lastTranscriptAgeMs,
+          elapsedInSessionMs: elapsed,
+          hypeLevel: settings.hypeLevel,
+          career: careerRef.current,
+        },
+        lastLineRef.current
+      );
+
+      const hypeScore = Math.min(
+        100,
+        Math.round(
+          motionRef.current.paceKmh * 4 +
+            motionRef.current.movementIntensity * 30 +
+            Math.min(40, elapsed / 60000 * 8)
+        )
+      );
+
       if (result) {
         engineRef.current = result.next;
-        setPartial({
-          hypeScore: Math.min(
-            100,
-            Math.round(
-              motionRef.current.paceKmh * 4 +
-                motionRef.current.movementIntensity * 30 +
-                Math.min(40, elapsed / 60000 * 8)
-            )
-          ),
-        });
+        setPartial({ hypeScore });
         void speakLine(result.line);
       } else {
-        setPartial({
-          hypeScore: Math.min(
-            100,
-            Math.round(
-              motionRef.current.paceKmh * 4 +
-                motionRef.current.movementIntensity * 30 +
-                Math.min(40, elapsed / 60000 * 8)
-            )
-          ),
-        });
+        setPartial({ hypeScore });
       }
     }, 1500);
 
@@ -223,6 +238,16 @@ export function useBroadcast(settings: Settings) {
       void wakeLockRef.current.release();
       wakeLockRef.current = null;
     }
+
+    // Persist the session into career stats (only if we covered ground).
+    const sessionKm = motionRef.current.distanceMeters / 1000;
+    if (sessionKm > 0.02 || peakKmhRef.current > 2) {
+      const next = recordSession(careerRef.current, sessionKm, peakKmhRef.current);
+      careerRef.current = next;
+      setPartial({ career: next });
+      saveCareer(next);
+    }
+
     setPartial({ phase: "idle", interim: "" });
   }, [setPartial]);
 
@@ -234,14 +259,19 @@ export function useBroadcast(settings: Settings) {
     if (speakingRef.current) return;
     const elapsed = performance.now() - sessionStartRef.current;
     const fakeEngine = { ...engineRef.current, lastTriggerAt: -999999, cooldownMs: 0 };
-    const result = decide(fakeEngine, {
-      athleteName: settings.athleteName || "THE ATHLETE",
-      motion: motionRef.current,
-      lastTranscript: transcriptRef.current || null,
-      lastTranscriptAgeMs: performance.now() - lastTranscriptAtRef.current,
-      elapsedInSessionMs: elapsed,
-      hypeLevel: settings.hypeLevel,
-    });
+    const result = decide(
+      fakeEngine,
+      {
+        athleteName: settings.athleteName || "THE ATHLETE",
+        motion: motionRef.current,
+        lastTranscript: transcriptRef.current || null,
+        lastTranscriptAgeMs: performance.now() - lastTranscriptAtRef.current,
+        elapsedInSessionMs: elapsed,
+        hypeLevel: settings.hypeLevel,
+        career: careerRef.current,
+      },
+      lastLineRef.current
+    );
     if (result) {
       engineRef.current = { ...result.next, cooldownMs: engineRef.current.cooldownMs };
       void speakLine(result.line);

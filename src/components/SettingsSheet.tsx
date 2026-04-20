@@ -117,7 +117,7 @@ export function SettingsSheet({ open, onClose, settings, update }: Props) {
               </div>
             </Field>
 
-            <Field label="Commentator voice">
+            <Field label="Play-by-play voice">
               <select
                 value={settings.voiceId}
                 onChange={(e) => update({ voiceId: e.target.value })}
@@ -129,6 +129,23 @@ export function SettingsSheet({ open, onClose, settings, update }: Props) {
                   </option>
                 ))}
               </select>
+            </Field>
+
+            <Field label="Color commentator voice">
+              <select
+                value={settings.colorVoiceId}
+                onChange={(e) => update({ colorVoiceId: e.target.value })}
+                className="w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2.5 font-mono text-sm text-[var(--color-chalk)] outline-none focus:border-[var(--color-blaze)]"
+              >
+                {voices.map((v) => (
+                  <option key={v.voice_id} value={v.voice_id}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
+              <div className="mt-1 text-[11px] leading-snug text-[var(--color-crowd)]">
+                Second voice. Interjects dry asides after play-by-play beats.
+              </div>
             </Field>
 
             <Field label={`Hype level · ${settings.hypeLevel}`}>

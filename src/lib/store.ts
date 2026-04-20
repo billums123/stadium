@@ -3,8 +3,9 @@ import { useEffect, useState } from "react";
 export type Settings = {
   elevenKey: string;
   athleteName: string;
-  voiceId: string;
-  hypeLevel: number; // 1-5
+  voiceId: string;       // play-by-play commentator
+  colorVoiceId: string;  // color commentator (the dry second voice)
+  hypeLevel: number;     // 1-5
   useConvai: boolean;
 };
 
@@ -14,7 +15,10 @@ const ENV_KEY =
 const DEFAULTS: Settings = {
   elevenKey: ENV_KEY,
   athleteName: "THE ATHLETE",
-  voiceId: "JBFqnCBsd6RMkjVDRZzb", // "George" — a clean broadcast voice preset available on all plans
+  // Stock voices present on every ElevenLabs plan. Picked intentionally
+  // different — a brighter-energy play-by-play and a drier color voice.
+  voiceId: "JBFqnCBsd6RMkjVDRZzb",       // George — broadcast baritone
+  colorVoiceId: "nPczCjzI2devNBz1zQrb",  // Brian — deep narrator
   hypeLevel: 4,
   useConvai: false,
 };

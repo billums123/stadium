@@ -10,11 +10,18 @@ export function CaptionStream({ line, speaking }: { line: Line | null; speaking:
       : "border-[var(--color-line)] text-[var(--color-chalk)]/90"
     : "border-[var(--color-line)] text-[var(--color-crowd)]";
 
+  const voiceLabel =
+    line?.voice === "color"
+      ? "COLOR COMMENTATOR"
+      : line?.voice === "play"
+      ? "PLAY-BY-PLAY"
+      : "PLAY-BY-PLAY";
+
   return (
     <div className="relative w-full">
       <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.25em] text-[var(--color-crowd)]">
         <span className="h-px flex-1 bg-[var(--color-line)]" />
-        <span>PLAY-BY-PLAY</span>
+        <span className={line?.voice === "color" ? "text-[var(--color-volt)]/80" : ""}>{voiceLabel}</span>
         <span className="h-px flex-1 bg-[var(--color-line)]" />
       </div>
 
