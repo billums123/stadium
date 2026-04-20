@@ -1,14 +1,21 @@
 /**
  * Ambient crowd bed. If an ElevenLabs key is present, fetches a cached crowd SFX loop.
  * Otherwise, synthesises a filtered pink-noise loop via Web Audio for demo mode.
+ *
+ * Also exposes an optional generative music bed that can run alongside the
+ * crowd loop for a third audio layer.
  */
 
-import { generateSfx } from "./elevenlabs";
+import { generateSfx, generateMusic } from "./elevenlabs";
 
 const CROWD_PROMPT =
   "A massive excited stadium crowd roaring, continuous ambient cheer, distant whistles and claps, no music, loopable";
 
+const MUSIC_PROMPT =
+  "Upbeat cinematic sports anthem, big driving drums, triumphant brass, driving bass line, no vocals, heroic, loopable, 130 bpm";
+
 let cachedCrowdUrl: string | null = null;
+let cachedMusicUrl: string | null = null;
 
 export async function loadCrowdBed(apiKey: string | null): Promise<HTMLAudioElement> {
   if (apiKey && !cachedCrowdUrl) {
@@ -29,6 +36,53 @@ export async function loadCrowdBed(apiKey: string | null): Promise<HTMLAudioElem
     audio.src = synthesizeCrowdDataUrl();
   }
   return audio;
+}
+
+/**
+ * Fetches (or reuses) a 30-second generative music bed. Intended to be
+ * loaded in the background after the crowd bed is already playing, and
+ * cross-faded in once ready. Returns null if no key is configured or the
+ * compose endpoint fails — callers should treat music as optional garnish.
+ */
+export async function loadMusicBed(apiKey: string | null): Promise<HTMLAudioElement | null> {
+  if (!apiKey) return null;
+  if (!cachedMusicUrl) {
+    try {
+      const blob = await generateMusic({
+        apiKey,
+        prompt: MUSIC_PROMPT,
+        musicLengthMs: 30_000,
+      });
+      cachedMusicUrl = URL.createObjectURL(blob);
+    } catch {
+      return null;
+    }
+  }
+  const audio = new Audio();
+  audio.loop = true;
+  audio.volume = 0;
+  audio.preload = "auto";
+  audio.src = cachedMusicUrl;
+  return audio;
+}
+
+/**
+ * Linear fade helper. Walks the audio element's volume to `target` over
+ * `durationMs`; safe to call repeatedly (each call cancels the prior).
+ */
+export function fadeTo(audio: HTMLAudioElement, target: number, durationMs: number) {
+  const start = audio.volume;
+  const startAt = performance.now();
+  const prev = (audio as HTMLAudioElement & { __fadeRaf?: number }).__fadeRaf;
+  if (prev) cancelAnimationFrame(prev);
+  const tick = () => {
+    const t = Math.min(1, (performance.now() - startAt) / durationMs);
+    audio.volume = start + (target - start) * t;
+    if (t < 1) {
+      (audio as HTMLAudioElement & { __fadeRaf?: number }).__fadeRaf = requestAnimationFrame(tick);
+    }
+  };
+  tick();
 }
 
 /**

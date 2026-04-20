@@ -95,6 +95,37 @@ export async function generateSfx(opts: SFXOpts): Promise<Blob> {
 
 export type Voice = { voice_id: string; name: string; category?: string };
 
+export type MusicOpts = {
+  apiKey: string;
+  prompt: string;
+  musicLengthMs?: number; // 3000 - 600000
+  signal?: AbortSignal;
+};
+
+export async function generateMusic(opts: MusicOpts): Promise<Blob> {
+  const { apiKey, prompt, musicLengthMs = 30000, signal } = opts;
+
+  const res = await fetch(`${BASE}/music?output_format=mp3_44100_128`, {
+    method: "POST",
+    headers: {
+      "xi-api-key": apiKey,
+      "Content-Type": "application/json",
+      Accept: "audio/mpeg",
+    },
+    body: JSON.stringify({
+      prompt,
+      music_length_ms: Math.max(3000, Math.min(600000, Math.round(musicLengthMs))),
+    }),
+    signal,
+  });
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(`Music compose failed: ${res.status} ${msg.slice(0, 180)}`);
+  }
+  return res.blob();
+}
+
 export async function listVoices(apiKey: string): Promise<Voice[]> {
   const res = await fetch(`${BASE}/voices`, { headers: { "xi-api-key": apiKey } });
   if (!res.ok) throw new Error(`Voices failed: ${res.status}`);

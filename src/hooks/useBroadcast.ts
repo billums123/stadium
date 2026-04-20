@@ -3,7 +3,7 @@ import { createMotionTracker, type MotionState } from "../lib/motion";
 import { startSpeechListener } from "../lib/speech";
 import { decide, INITIAL_ENGINE, type Line } from "../lib/commentary";
 import { synthesizeSpeech, blobToObjectUrl } from "../lib/elevenlabs";
-import { loadCrowdBed } from "../lib/ambient";
+import { loadCrowdBed, loadMusicBed, fadeTo } from "../lib/ambient";
 import { acquireWakeLock, type WakeLockHandle } from "../lib/wakelock";
 import type { Settings } from "../lib/store";
 
@@ -52,6 +52,7 @@ export function useBroadcast(settings: Settings) {
   const speechRef = useRef<ReturnType<typeof startSpeechListener> | null>(null);
   const lastTranscriptAtRef = useRef<number>(-999999);
   const crowdAudioRef = useRef<HTMLAudioElement | null>(null);
+  const musicAudioRef = useRef<HTMLAudioElement | null>(null);
   const speechAudioRef = useRef<HTMLAudioElement | null>(null);
   const wakeLockRef = useRef<WakeLockHandle | null>(null);
   const tickRef = useRef<number | null>(null);
@@ -119,6 +120,23 @@ export function useBroadcast(settings: Settings) {
     } catch (e) {
       // silent — crowd bed is optional
       void e;
+    }
+
+    // Music bed loads in the background after the session is already live; if
+    // it succeeds we fade it in underneath the commentary, if it fails we just
+    // ride the crowd bed alone.
+    if (settings.elevenKey) {
+      void (async () => {
+        const music = await loadMusicBed(settings.elevenKey);
+        if (!music) return;
+        musicAudioRef.current = music;
+        try {
+          await music.play();
+          fadeTo(music, 0.18, 2500);
+        } catch {
+          /* autoplay blocked */
+        }
+      })();
     }
 
     const tracker = createMotionTracker((m) => {
@@ -192,6 +210,12 @@ export function useBroadcast(settings: Settings) {
       crowdAudioRef.current.pause();
       crowdAudioRef.current = null;
     }
+    if (musicAudioRef.current) {
+      const m = musicAudioRef.current;
+      fadeTo(m, 0, 500);
+      setTimeout(() => m.pause(), 550);
+      musicAudioRef.current = null;
+    }
     if (speechAudioRef.current) {
       speechAudioRef.current.pause();
     }
@@ -229,6 +253,7 @@ export function useBroadcast(settings: Settings) {
     trackerRef.current?.stop();
     speechRef.current?.stop();
     crowdAudioRef.current?.pause();
+    musicAudioRef.current?.pause();
     void wakeLockRef.current?.release();
   }, []);
 
