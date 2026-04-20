@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import type { BroadcastStatus } from "../hooks/useBroadcast";
+import { HypeMeter } from "./HypeMeter";
 
 type Props = {
   status: BroadcastStatus;
@@ -60,6 +61,8 @@ export function Scoreboard({ status, athleteName }: Props) {
         <Stat label="Distance" value={fmtDistance(mo.distanceMeters)} accent="chalk" />
         <Stat label="Pace" value={`${mo.paceKmh.toFixed(1)} kmh`} accent={mo.paceKmh > 8 ? "volt" : "chalk"} />
       </div>
+
+      <HypeMeter value={hypeScore} />
     </div>
   );
 }

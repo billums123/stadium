@@ -12,6 +12,7 @@ export type BroadcastStatus = {
   phase: BroadcastPhase;
   motion: MotionState;
   lastLine: Line | null;
+  history: Line[];
   transcript: string;
   interim: string;
   speaking: boolean;
@@ -36,6 +37,7 @@ export function useBroadcast(settings: Settings) {
     phase: "idle",
     motion: EMPTY_MOTION,
     lastLine: null,
+    history: [],
     transcript: "",
     interim: "",
     speaking: false,
@@ -63,7 +65,12 @@ export function useBroadcast(settings: Settings) {
     async (line: Line) => {
       if (speakingRef.current) return;
       speakingRef.current = true;
-      setPartial({ lastLine: line, speaking: true });
+      setStatus((s) => ({
+        ...s,
+        lastLine: line,
+        speaking: true,
+        history: [line, ...s.history].slice(0, 6),
+      }));
 
       try {
         if (settings.elevenKey) {
@@ -184,6 +191,24 @@ export function useBroadcast(settings: Settings) {
     trackerRef.current?.simulate(kmh);
   }, []);
 
+  const forceLine = useCallback(() => {
+    if (speakingRef.current) return;
+    const elapsed = performance.now() - sessionStartRef.current;
+    const fakeEngine = { ...engineRef.current, lastTriggerAt: -999999, cooldownMs: 0 };
+    const result = decide(fakeEngine, {
+      athleteName: settings.athleteName || "THE ATHLETE",
+      motion: motionRef.current,
+      lastTranscript: transcriptRef.current || null,
+      lastTranscriptAgeMs: performance.now() - lastTranscriptAtRef.current,
+      elapsedInSessionMs: elapsed,
+      hypeLevel: settings.hypeLevel,
+    });
+    if (result) {
+      engineRef.current = { ...result.next, cooldownMs: engineRef.current.cooldownMs };
+      void speakLine(result.line);
+    }
+  }, [settings.athleteName, settings.hypeLevel, speakLine]);
+
   useEffect(() => () => {
     if (tickRef.current != null) clearInterval(tickRef.current);
     trackerRef.current?.stop();
@@ -191,7 +216,7 @@ export function useBroadcast(settings: Settings) {
     crowdAudioRef.current?.pause();
   }, []);
 
-  return { status, start, stop, simulate, speakLine };
+  return { status, start, stop, simulate, speakLine, forceLine };
 }
 
 function playUrl(url: string, audioRef: React.RefObject<HTMLAudioElement | null>): Promise<void> {

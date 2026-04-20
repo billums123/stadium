@@ -7,6 +7,8 @@ import { CaptionStream } from "./components/CaptionStream";
 import { Ticker } from "./components/Ticker";
 import { BroadcastButton } from "./components/BroadcastButton";
 import { SettingsSheet } from "./components/SettingsSheet";
+import { SessionLog } from "./components/SessionLog";
+import { FlashOverlay } from "./components/FlashOverlay";
 
 function App() {
   const [settings, updateSettings] = useSettings();
@@ -55,6 +57,7 @@ function App() {
             <Scoreboard status={status} athleteName={settings.athleteName} />
             <CaptionStream line={status.lastLine} speaking={status.speaking} />
             <MicCard interim={status.interim} transcript={status.transcript} dot={micDot} />
+            <SessionLog history={status.history} />
             {status.error && (
               <div className="rounded-lg border border-[var(--color-blaze)]/60 bg-[var(--color-blaze)]/10 px-3 py-2 text-sm text-[var(--color-chalk)]">
                 ⚠ {status.error}
@@ -69,7 +72,10 @@ function App() {
         onStart={broadcast.start}
         onStop={broadcast.stop}
         onSimulate={broadcast.simulate}
+        onForceLine={broadcast.forceLine}
       />
+
+      <FlashOverlay line={status.lastLine} />
 
       <SettingsSheet
         open={settingsOpen}
@@ -208,42 +214,66 @@ function BottomBar({
   onStart,
   onStop,
   onSimulate,
+  onForceLine,
 }: {
   phase: "idle" | "warming" | "live" | "stopping";
   onStart: () => void;
   onStop: () => void;
   onSimulate: (kmh: number) => void;
+  onForceLine: () => void;
 }) {
+  const isLive = phase === "live";
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--color-line)] bg-[var(--color-ink)]/90 px-4 py-3 backdrop-blur pb-[max(env(safe-area-inset-bottom,0.75rem),0.75rem)]">
       <div className="mx-auto flex w-full max-w-xl items-center justify-between gap-3">
-        <SimulateButton label="WALK" kmh={5} onSimulate={onSimulate} disabled={phase !== "live"} />
+        {isLive ? (
+          <ActionButton label="WALK" sub="sim" onClick={() => onSimulate(5)} />
+        ) : (
+          <div className="w-[84px]" />
+        )}
         <BroadcastButton phase={phase} onStart={onStart} onStop={onStop} />
-        <SimulateButton label="RUN" kmh={11} onSimulate={onSimulate} disabled={phase !== "live"} />
+        {isLive ? (
+          <ActionButton label="HYPE" sub="line" accent onClick={onForceLine} />
+        ) : (
+          <div className="w-[84px]" />
+        )}
       </div>
+      {isLive && (
+        <div className="mx-auto mt-2 flex w-full max-w-xl justify-center">
+          <button
+            onClick={() => onSimulate(11)}
+            className="rounded-md border border-[var(--color-line)] bg-[var(--color-ink-2)]/70 px-3 py-1 font-display text-[11px] uppercase tracking-[0.25em] text-[var(--color-chalk)]/70 hover:border-[var(--color-chalk)]/60"
+          >
+            sim · run pace
+          </button>
+        </div>
+      )}
     </nav>
   );
 }
 
-function SimulateButton({
+function ActionButton({
   label,
-  kmh,
-  onSimulate,
-  disabled,
+  sub,
+  onClick,
+  accent,
 }: {
   label: string;
-  kmh: number;
-  onSimulate: (kmh: number) => void;
-  disabled?: boolean;
+  sub: string;
+  onClick: () => void;
+  accent?: boolean;
 }) {
   return (
     <button
-      onClick={() => onSimulate(kmh)}
-      disabled={disabled}
-      className="flex flex-col items-center rounded-lg border border-[var(--color-line)] bg-[var(--color-ink-2)]/80 px-3 py-2 text-left transition enabled:hover:border-[var(--color-chalk)]/60 disabled:opacity-40"
+      onClick={onClick}
+      className={`flex w-[84px] flex-col items-center rounded-lg border px-3 py-2 transition ${
+        accent
+          ? "border-[var(--color-volt)]/60 bg-[var(--color-volt)]/10 text-[var(--color-volt)] hover:border-[var(--color-volt)]"
+          : "border-[var(--color-line)] bg-[var(--color-ink-2)]/80 text-[var(--color-chalk)] hover:border-[var(--color-chalk)]/60"
+      }`}
     >
-      <div className="font-display text-xs uppercase tracking-[0.2em] text-[var(--color-crowd)]">sim</div>
-      <div className="font-display text-base leading-none text-[var(--color-chalk)]">{label}</div>
+      <div className="font-display text-[10px] uppercase tracking-[0.25em] opacity-70">{sub}</div>
+      <div className="font-display text-base leading-none">{label}</div>
     </button>
   );
 }
