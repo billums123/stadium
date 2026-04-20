@@ -8,10 +8,13 @@ export type Settings = {
   useConvai: boolean;
 };
 
+const ENV_KEY =
+  (import.meta.env?.VITE_ELEVENLABS_API_KEY as string | undefined)?.trim() || "";
+
 const DEFAULTS: Settings = {
-  elevenKey: "",
+  elevenKey: ENV_KEY,
   athleteName: "THE ATHLETE",
-  voiceId: "JBFqnCBsd6RMkjVDRZzb", // ElevenLabs "George" — a clean broadcast voice preset available on all plans
+  voiceId: "JBFqnCBsd6RMkjVDRZzb", // "George" — a clean broadcast voice preset available on all plans
   hypeLevel: 4,
   useConvai: false,
 };
@@ -22,7 +25,10 @@ export function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return DEFAULTS;
-    return { ...DEFAULTS, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw) as Partial<Settings>;
+    // Env key takes precedence when the user hasn't explicitly set one in the UI
+    const elevenKey = parsed.elevenKey?.trim() || ENV_KEY;
+    return { ...DEFAULTS, ...parsed, elevenKey };
   } catch {
     return DEFAULTS;
   }

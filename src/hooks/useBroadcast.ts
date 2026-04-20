@@ -4,6 +4,7 @@ import { startSpeechListener } from "../lib/speech";
 import { decide, INITIAL_ENGINE, type Line } from "../lib/commentary";
 import { synthesizeSpeech, blobToObjectUrl } from "../lib/elevenlabs";
 import { loadCrowdBed } from "../lib/ambient";
+import { acquireWakeLock, type WakeLockHandle } from "../lib/wakelock";
 import type { Settings } from "../lib/store";
 
 export type BroadcastPhase = "idle" | "warming" | "live" | "stopping";
@@ -52,6 +53,7 @@ export function useBroadcast(settings: Settings) {
   const lastTranscriptAtRef = useRef<number>(-999999);
   const crowdAudioRef = useRef<HTMLAudioElement | null>(null);
   const speechAudioRef = useRef<HTMLAudioElement | null>(null);
+  const wakeLockRef = useRef<WakeLockHandle | null>(null);
   const tickRef = useRef<number | null>(null);
   const speakingRef = useRef(false);
   const motionRef = useRef<MotionState>(EMPTY_MOTION);
@@ -74,21 +76,27 @@ export function useBroadcast(settings: Settings) {
 
       try {
         if (settings.elevenKey) {
-          const blob = await synthesizeSpeech({
-            apiKey: settings.elevenKey,
-            voiceId: settings.voiceId,
-            text: line.text,
-            style: Math.min(0.95, 0.55 + (settings.hypeLevel - 3) * 0.1),
-            stability: Math.max(0.15, 0.45 - (settings.hypeLevel - 3) * 0.05),
-          });
-          const url = blobToObjectUrl(blob);
-          await playUrl(url, speechAudioRef);
-          URL.revokeObjectURL(url);
+          try {
+            const blob = await synthesizeSpeech({
+              apiKey: settings.elevenKey,
+              voiceId: settings.voiceId,
+              text: line.text,
+              style: Math.min(0.95, 0.55 + (settings.hypeLevel - 3) * 0.1),
+              stability: Math.max(0.15, 0.45 - (settings.hypeLevel - 3) * 0.05),
+            });
+            const url = blobToObjectUrl(blob);
+            await playUrl(url, speechAudioRef);
+            URL.revokeObjectURL(url);
+            setPartial({ error: null });
+          } catch (err) {
+            // Fall back to browser voice so the broadcast doesn't die silently,
+            // but surface the failure so the user knows to fix their key.
+            setPartial({ error: (err as Error).message });
+            if ("speechSynthesis" in window) await browserSpeak(line.text);
+          }
         } else if ("speechSynthesis" in window) {
           await browserSpeak(line.text);
         }
-      } catch (err) {
-        setPartial({ error: (err as Error).message });
       } finally {
         speakingRef.current = false;
         setPartial({ speaking: false });
@@ -101,6 +109,9 @@ export function useBroadcast(settings: Settings) {
     setPartial({ phase: "warming", error: null });
     engineRef.current = { ...INITIAL_ENGINE };
     sessionStartRef.current = performance.now();
+
+    // Keep the screen awake for the whole session — a dimmed phone = dead broadcast.
+    wakeLockRef.current = await acquireWakeLock();
 
     try {
       crowdAudioRef.current = await loadCrowdBed(settings.elevenKey || null);
@@ -184,6 +195,10 @@ export function useBroadcast(settings: Settings) {
     if (speechAudioRef.current) {
       speechAudioRef.current.pause();
     }
+    if (wakeLockRef.current) {
+      void wakeLockRef.current.release();
+      wakeLockRef.current = null;
+    }
     setPartial({ phase: "idle", interim: "" });
   }, [setPartial]);
 
@@ -214,6 +229,7 @@ export function useBroadcast(settings: Settings) {
     trackerRef.current?.stop();
     speechRef.current?.stop();
     crowdAudioRef.current?.pause();
+    void wakeLockRef.current?.release();
   }, []);
 
   return { status, start, stop, simulate, speakLine, forceLine };

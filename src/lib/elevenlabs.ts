@@ -24,7 +24,7 @@ export async function synthesizeSpeech(opts: TTSOpts): Promise<Blob> {
     text,
     voiceId,
     apiKey,
-    modelId = "eleven_multilingual_v2",
+    modelId = "eleven_turbo_v2_5",
     style = 0.7,
     stability = 0.35,
     similarity = 0.85,
