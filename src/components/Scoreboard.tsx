@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
+import { useState } from "react";
 import type { BroadcastStatus } from "../hooks/useBroadcast";
 import { HypeMeter } from "./HypeMeter";
+import { shareCard } from "../lib/sharecard";
 
 type Props = {
   status: BroadcastStatus;
@@ -20,7 +22,20 @@ function fmtDistance(m: number) {
 }
 
 export function Scoreboard({ status, athleteName }: Props) {
-  const { motion: mo, hypeScore, speaking } = status;
+  const { motion: mo, hypeScore, speaking, lastLine } = status;
+  const [sharing, setSharing] = useState(false);
+
+  const onShare = async () => {
+    if (sharing) return;
+    setSharing(true);
+    try {
+      await shareCard({ athleteName, line: lastLine, motion: mo, hypeScore });
+    } catch {
+      /* user cancelled or browser refused */
+    } finally {
+      setSharing(false);
+    }
+  };
 
   return (
     <div className="relative overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-ink-2)]/95 shadow-[0_0_0_1px_rgba(255,255,255,0.04)] scanline">
@@ -32,7 +47,14 @@ export function Scoreboard({ status, athleteName }: Props) {
           </span>
           LIVE — STADIUM CH. 01
         </span>
-        <span className="flicker text-[var(--color-chalk)]/70">REC · CAM 1</span>
+        <button
+          type="button"
+          onClick={onShare}
+          disabled={sharing}
+          className="font-display text-[10px] uppercase tracking-[0.25em] text-[var(--color-chalk)]/70 hover:text-[var(--color-chalk)] disabled:opacity-50"
+        >
+          {sharing ? "rendering…" : "◉ photo finish"}
+        </button>
       </div>
 
       <div className="flex items-end justify-between gap-3 px-4 pb-3">
