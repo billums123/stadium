@@ -62,9 +62,9 @@ connection.
 
 ## 4. Design decisions
 
-- **Browser-only, no backend.** The hackathon submission is a static site. The
-  athlete provides their own ElevenLabs key, calls the ElevenLabs REST API
-  directly, and owns their own usage.
+- **Browser-only, no backend.** The app is a static site. The athlete
+  provides their own API key (or one is baked in via `VITE_*` env var for
+  demo builds), calls the voice API directly, and owns their own usage.
 - **Pure decision engine.** `lib/commentary.ts#decide(state, signal)` is a
   deterministic pure function. This keeps the behavior under R1–R5 testable,
   and leaves room to swap in an LLM-driven generator later without changing
