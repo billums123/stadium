@@ -2,93 +2,99 @@
 
 Ship order for the ~1 hour before the submission deadline.
 
-## 1. Env var (30 seconds)
+## Architecture note
+
+As of the most recent commit, **API keys live server-side only.** The
+browser never sees them. Every ElevenLabs / OpenAI call goes through
+same-origin `/api/*` Vercel serverless functions that hold the
+credentials in `process.env`.
+
+Env vars (no `VITE_` prefix — these are server-side):
+- `ELEVENLABS_API_KEY`
+- `OPENAI_API_KEY`
+
+Local `.env` works the same way; the Vite dev plugin (`apiDevPlugin`
+in `vite.config.ts`) mounts the same handlers for `npm run dev`.
+
+## 1. Env (30 s)
 
 ```bash
 cp .env.example .env
-# paste your ElevenLabs key into VITE_ELEVENLABS_API_KEY
+# paste both keys into .env
 ```
 
-## 2. Smoke-test locally (2 minutes)
+## 2. Local smoke-test (2 min)
 
 ```bash
 npm run dev
-# open http://localhost:5173 in Chrome
-# tap GO → should hear 3 cold-open lines (two voices alternating)
-# tap SIM · RUN PACE → should hear a pace-surge line after ~14s
-# tap LINE HYPE → should force-fire an immediate line
-# tap the ◉ PHOTO FINISH button → PNG downloads
-# tap STOP → career stats persist (reload and check cold-open references them)
+# open http://localhost:5173
+# tap GO → listen for welcome → 3-2-1 beeps → horn
+# HUD appears AFTER the horn; timer starts from 00:00 then
+# tap SIM · RUN PACE → a pace-surge line should fire after ~14s
+# tap LINE HYPE → force-fires an immediate line
+# tap ◉ SHARE in the scoreboard → photo-finish PNG downloads
+# tap STOP → career stats persist (reload and cold-open references them)
 ```
 
 If any step fails, fix before deploying.
 
-## 3. Build + deploy (5 minutes)
+## 3. Build + deploy (5 min)
 
-### Vercel
+### Vercel (recommended)
 
 ```bash
 npm install -g vercel
+vercel link                       # one-time: link this dir to a Vercel project
+vercel env add ELEVENLABS_API_KEY production
+vercel env add OPENAI_API_KEY production
 vercel deploy --prod
-# follow prompts; accept the inferred Vite settings
-# when asked about env vars, paste VITE_ELEVENLABS_API_KEY
 ```
 
-### Cloudflare Pages
+Vercel auto-detects Vite for the frontend build and picks up each
+`/api/*.ts` as a Node serverless function. Nothing else to configure.
 
-```bash
-npm run build
-npm install -g wrangler
-wrangler pages deploy dist --project-name stadium
-# set VITE_ELEVENLABS_API_KEY in the Cloudflare dashboard → redeploy
-```
+### Other hosts
 
-### Netlify
+Cloudflare Pages / Netlify can also run Node serverless functions, but
+the handler signature / file conventions differ slightly. For a
+hackathon, stick with Vercel.
 
-```bash
-npm install -g netlify-cli
-npm run build
-netlify deploy --prod --dir=dist
-# set the env var in the Netlify dashboard
-```
+## 4. Real-device QA (10 min)
 
-## 4. Real-device QA (10 minutes)
+On your actual phone, open the deployed HTTPS URL. Don't skip — iOS
+Safari handles motion, mic, and audio-context permissions differently
+from desktop Chrome.
 
-On your actual phone, open the deployed HTTPS URL. Don't skip this — on
-iOS Safari, motion and mic permissions behave very differently from
-Chrome desktop.
-
-- **iOS Safari** (iPhone):
-  - Tap GO. Allow motion, allow mic. Both prompts should appear on the
-    first tap.
-  - Confirm the cold-open fires and the two voices sound different.
-  - Confirm the screen doesn't dim while you hold the phone (wake
-    lock is active).
-  - Confirm "Add to Home Screen" installs with the STADIUM icon.
+- **iOS Safari:**
+  - Tap GO. Allow motion + mic on the first tap. Audio context must
+    initialise inside that same gesture or the countdown beeps will
+    be silent.
+  - Confirm welcome voice, 3-2-1 beeps, horn, and then clock at 00:00.
+  - Screen should stay awake while holding (wake lock is active).
+  - "Add to Home Screen" should install with the STADIUM icon.
 - **Android Chrome:**
   - Same checks. Web Speech API works here — shout into the phone and
     confirm a quote line fires.
 
-If the iOS motion prompt never appears, you're on HTTP instead of HTTPS
-— re-check the deployed URL.
+If the iOS motion prompt never appears, you're on HTTP, not HTTPS.
 
-## 5. Push to GitHub (2 minutes)
+## 5. Push to GitHub (2 min)
 
 ```bash
 gh repo create stadium --public --source=. --push
-# or just: git remote add origin <url> && git push -u origin main
 ```
 
-## 6. Film + post (see VIDEO.md, POSTS.md)
+## 6. Film + post
+
+See `VIDEO.md` and `POSTS.md`.
 
 ## 7. Submit
 
 Submission page on hacks.elevenlabs.io:
+- Deployed URL
+- GitHub URL
+- Blurb from `POSTS.md`
+- Video link
+- Links to each social post (+50 points each)
 
-- Paste the deployed URL.
-- Paste the GitHub URL.
-- Use the blurb at the end of POSTS.md.
-- Upload / link the video.
-- Include links to all four social posts. Each is +50 points.
-
-Submission deadline: Thursday, April 23, 5 PM.
+Deadline: Thursday, April 23, 5 PM.
