@@ -5,14 +5,22 @@ import { synthesizeSpeech } from "../lib/elevenlabs";
 import { loadCrowdBed, loadMusicBed, fadeTo } from "../lib/ambient";
 import { acquireWakeLock, type WakeLockHandle } from "../lib/wakelock";
 import { loadCareer, recordSession, saveCareer, type Career } from "../lib/career";
-import { plan, INITIAL_DIRECTOR, type DirectorState, type DirectorPlan } from "../lib/director";
+import {
+  plan,
+  INITIAL_DIRECTOR,
+  buildRecapPrompts,
+  type DirectorState,
+  type DirectorPlan,
+} from "../lib/director";
+import { buildRecapLine } from "../lib/commentary";
+import { computeRecap, isRecapWorthy, type RecapSnapshot } from "../lib/recap";
 import { generateLine, warmUp as warmUpLLM } from "../lib/llm";
 import { stripAudioTags } from "../lib/tags";
 import { computeProgress, type GoalProgress } from "../lib/goal";
 import { countdownBeep, startingHorn, primeAudio } from "../lib/soundfx";
 import type { Settings } from "../lib/store";
 
-export type BroadcastPhase = "idle" | "warming" | "live" | "stopping";
+export type BroadcastPhase = "idle" | "warming" | "live" | "stopping" | "recap";
 
 export type BroadcastStatus = {
   phase: BroadcastPhase;
@@ -27,6 +35,8 @@ export type BroadcastStatus = {
   dynamicActive: boolean;
   /** null when not in cold-open. 3/2/1 during countdown. 0 on the horn. */
   countdown: number | null;
+  /** Populated when phase === "recap". Null otherwise. */
+  recap: RecapSnapshot | null;
 };
 
 const EMPTY_MOTION: MotionState = {
@@ -54,11 +64,13 @@ export function useBroadcast(settings: Settings) {
     goalProgress: null,
     dynamicActive: false,
     countdown: null,
+    recap: null,
   }));
 
   const directorRef = useRef<DirectorState>({ ...INITIAL_DIRECTOR });
   const sessionStartRef = useRef(0);
   const peakKmhRef = useRef(0);
+  const peakHypeRef = useRef(0);
   const careerRef = useRef<Career>(status.career);
   const lastLineRef = useRef<Line | null>(null);
   const lastIntensityRef = useRef(0);
@@ -117,6 +129,7 @@ export function useBroadcast(settings: Settings) {
         text,
       };
       lastLineRef.current = line;
+      if (p.intensity > peakHypeRef.current) peakHypeRef.current = p.intensity;
       setStatus((s) => ({
         ...s,
         lastLine: line,
@@ -178,6 +191,7 @@ export function useBroadcast(settings: Settings) {
     directorRef.current = { ...INITIAL_DIRECTOR, coldOpenIndex: -1, hasOpened: true };
     lastLineRef.current = null;
     peakKmhRef.current = 0;
+    peakHypeRef.current = 0;
 
     wakeLockRef.current = await acquireWakeLock();
 
@@ -283,9 +297,27 @@ export function useBroadcast(settings: Settings) {
       tickRef.current = null;
     }
     trackerRef.current?.stop();
+
+    // Snapshot the frozen session state before we tear audio down.
+    const frozenMotion = { ...motionRef.current };
+    const frozenGoalProgress = settings.goal
+      ? computeProgress(settings.goal, frozenMotion.elapsedMs, frozenMotion.distanceMeters)
+      : null;
+    const worthRecap = isRecapWorthy(frozenMotion);
+
     if (crowdAudioRef.current) {
-      crowdAudioRef.current.pause();
+      // Fade crowd out cleanly; keep the element alive briefly so the
+      // recap screen has some ambient room tone under it.
+      fadeTo(crowdAudioRef.current, 0.08, 400);
+      const c = crowdAudioRef.current;
       crowdAudioRef.current = null;
+      setTimeout(() => {
+        if (!worthRecap) c.pause();
+      }, 500);
+      if (worthRecap) {
+        // Let the recap screen pause it on dismount.
+        setTimeout(() => c.pause(), 30_000);
+      }
     }
     if (musicAudioRef.current) {
       const m = musicAudioRef.current;
@@ -301,16 +333,126 @@ export function useBroadcast(settings: Settings) {
       wakeLockRef.current = null;
     }
 
-    const sessionKm = motionRef.current.distanceMeters / 1000;
-    if (sessionKm > 0.02 || peakKmhRef.current > 2) {
-      const next = recordSession(careerRef.current, sessionKm, peakKmhRef.current);
-      careerRef.current = next;
-      setPartial({ career: next });
-      saveCareer(next);
+    // Sub-threshold sessions go straight back to landing without a
+    // recap, and don't pollute career stats. R1 thresholds.
+    if (!worthRecap) {
+      setPartial({ phase: "idle", goalProgress: null, recap: null });
+      return;
     }
 
-    setPartial({ phase: "idle", goalProgress: null });
-  }, [setPartial]);
+    // Persist the session into career (R12 — exactly once, on recap entry).
+    const sessionKm = frozenMotion.distanceMeters / 1000;
+    const nextCareer = recordSession(careerRef.current, sessionKm, peakKmhRef.current);
+    careerRef.current = nextCareer;
+    saveCareer(nextCareer);
+
+    // Build the recap snapshot (R4–R6).
+    const recap = computeRecap(
+      settings.athleteName || "THE ATHLETE",
+      frozenMotion,
+      peakKmhRef.current,
+      peakHypeRef.current,
+      frozenGoalProgress
+    );
+
+    // Render the recap immediately with a placeholder line, then
+    // backfill the closing beat when the LLM resolves.
+    setStatus((s) => ({
+      ...s,
+      phase: "recap",
+      goalProgress: frozenGoalProgress,
+      career: nextCareer,
+      recap,
+    }));
+
+    // Generate the closing line (R7–R9).
+    const outcomeKind: "complete" | "failed" | "free-run" =
+      recap.goalOutcome === "complete" ? "complete"
+      : recap.goalOutcome === "failed" ? "failed"
+      : "free-run";
+    const fallbackLine = buildRecapLine(outcomeKind, {
+      athleteName: recap.athleteName,
+      motion: frozenMotion,
+      lastTranscript: null,
+      lastTranscriptAgeMs: Number.POSITIVE_INFINITY,
+      elapsedInSessionMs: frozenMotion.elapsedMs,
+      hypeLevel: settings.hypeLevel,
+      career: nextCareer,
+    });
+
+    let closingText = fallbackLine.text;
+    if (settings.useDynamic) {
+      const prompts = buildRecapPrompts({
+        athleteName: recap.athleteName,
+        outcome: recap.goalOutcome,
+        totalDistanceM: recap.totalDistanceM,
+        totalTimeMs: recap.totalTimeMs,
+        peakKmh: recap.peakKmh,
+        avgKmh: recap.avgKmh,
+        peakHype: recap.peakHype,
+        careerAfterSessions: nextCareer.sessions,
+        careerAfterTotalKm: nextCareer.totalKm,
+      });
+      const generated = await generateLine({
+        system: prompts.system,
+        user: prompts.user,
+        model: settings.llmModel,
+        maxTokens: 160,
+        timeoutMs: 4000,
+      });
+      if (generated) closingText = generated;
+    }
+
+    const closingLine: Line = {
+      ...fallbackLine,
+      text: closingText,
+    };
+
+    setStatus((s) => (s.recap
+      ? { ...s, recap: { ...s.recap, closingLine } }
+      : s
+    ));
+
+    // Speak the closing line through the normal TTS pipeline.
+    try {
+      const blob = await synthesizeSpeech({
+        voiceId: settings.voiceId,
+        text: stripAudioTags(closingText),
+        style: recap.goalOutcome === "complete" ? 0.85 : 0.55,
+        stability: 0.4,
+        similarity: 0.85,
+      });
+      const url = URL.createObjectURL(blob);
+      await new Promise<void>((resolve) => {
+        const audio = new Audio(url);
+        (audio as HTMLAudioElement & { preservesPitch?: boolean }).preservesPitch = true;
+        speechAudioRef.current = audio;
+        audio.onended = () => resolve();
+        audio.onerror = () => resolve();
+        audio.play().catch(() => resolve());
+      });
+      URL.revokeObjectURL(url);
+    } catch {
+      /* silent — text is already on screen */
+    }
+  }, [settings, setPartial]);
+
+  const newBroadcast = useCallback(() => {
+    if (speechAudioRef.current) speechAudioRef.current.pause();
+    setStatus((s) => ({
+      ...s,
+      phase: "idle",
+      goalProgress: null,
+      recap: null,
+      lastLine: null,
+      history: [],
+      hypeScore: 0,
+      countdown: null,
+      error: null,
+    }));
+    directorRef.current = { ...INITIAL_DIRECTOR };
+    lastLineRef.current = null;
+  }, []);
 
   const simulate = useCallback((kmh: number) => {
     trackerRef.current?.simulate(kmh);
@@ -348,7 +490,7 @@ export function useBroadcast(settings: Settings) {
     void wakeLockRef.current?.release();
   }, []);
 
-  return { status, start, stop, simulate, forceLine };
+  return { status, start, stop, simulate, forceLine, newBroadcast };
 }
 
 /**

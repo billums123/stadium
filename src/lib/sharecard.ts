@@ -6,6 +6,7 @@
 
 import type { Line } from "./commentary";
 import type { MotionState } from "./motion";
+import type { RecapSnapshot } from "./recap";
 import { stripAudioTags } from "./tags";
 
 export type ShareCardInput = {
@@ -13,6 +14,9 @@ export type ShareCardInput = {
   line: Line | null;
   motion: MotionState;
   hypeScore: number;
+  /** When present, renders the FINAL WHISTLE recap chrome instead of
+   *  the live LIVE · CH. 01 treatment. */
+  recap?: RecapSnapshot | null;
 };
 
 const W = 1080;
@@ -57,19 +61,35 @@ export async function renderShareCard(input: ShareCardInput): Promise<Blob> {
   ctx.fillStyle = "#f5f2e8";
   ctx.fillText("STADIUM", 200, 80 + 55);
 
+  // Chrome varies between live-capture and post-session recap.
+  const r = input.recap ?? null;
   ctx.font = "700 26px ui-sans-serif, system-ui, sans-serif";
   ctx.fillStyle = "#ff3b1f";
-  ctx.fillText("LIVE · CH. 01", 200, 80 + 102);
+  ctx.fillText(r ? "FINAL WHISTLE · STADIUM" : "LIVE · CH. 01", 200, 80 + 102);
 
-  // "On air" dot.
-  ctx.fillStyle = "#ff3b1f";
+  // Status badge top-right.
+  const badgeColor = r
+    ? r.goalOutcome === "complete"
+      ? "#f5ff1f"
+      : r.goalOutcome === "failed"
+      ? "#ff3b1f"
+      : "#f5f2e8"
+    : "#ff3b1f";
+  const badgeText = r
+    ? r.goalOutcome === "complete"
+      ? "GOAL HIT"
+      : r.goalOutcome === "failed"
+      ? "CLOCK GONE"
+      : "FREE RUN"
+    : "ON AIR";
+  ctx.fillStyle = badgeColor;
   ctx.beginPath();
   ctx.arc(W - 120, 135, 16, 0, Math.PI * 2);
   ctx.fill();
   ctx.font = "700 26px ui-sans-serif, system-ui, sans-serif";
   ctx.fillStyle = "#f5f2e8";
   ctx.textAlign = "right";
-  ctx.fillText("ON AIR", W - 150, 140);
+  ctx.fillText(badgeText, W - 150, 140);
 
   // Athlete name + hype.
   ctx.textAlign = "left";
@@ -89,9 +109,13 @@ export async function renderShareCard(input: ShareCardInput): Promise<Blob> {
   ctx.fillText(String(input.hypeScore), W - 70, 430);
 
   // Stat row — three equal columns centered so values never overflow.
+  // Recap mode shows average pace (useful to frame a session);
+  // live mode shows instantaneous pace.
   const statsY = 560;
   const padX = 70;
   const colW = (W - padX * 2) / 3;
+  const paceValue = r ? r.avgKmh : input.motion.paceKmh;
+  const paceLabel = r ? "AVG" : "PACE";
   drawStat(ctx, padX + colW * 0, statsY, colW, "TIME", fmtDuration(input.motion.elapsedMs), "#f5f2e8");
   drawStat(ctx, padX + colW * 1, statsY, colW, "DIST", fmtDistance(input.motion.distanceMeters), "#f5f2e8");
   drawStat(
@@ -99,9 +123,9 @@ export async function renderShareCard(input: ShareCardInput): Promise<Blob> {
     padX + colW * 2,
     statsY,
     colW,
-    "PACE",
-    `${input.motion.paceKmh.toFixed(1)} kmh`,
-    input.motion.paceKmh > 8 ? "#f5ff1f" : "#f5f2e8"
+    paceLabel,
+    `${paceValue.toFixed(1)} kmh`,
+    paceValue > 8 ? "#f5ff1f" : "#f5f2e8"
   );
 
   // Hype meter bar.

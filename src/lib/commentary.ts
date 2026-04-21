@@ -317,6 +317,38 @@ export function buildSignoff(s: Signal): Line {
   return { trigger: "signoff", voice: "play", urgency: 3, text: rand(opts) };
 }
 
+// ─── Session recap closing lines (session-recap spec R9) ───────────────
+// Template fallback when the LLM call for the closing beat fails.
+// Three kinds so the outcome-specific tone always lands even offline.
+
+export function buildRecapLine(
+  kind: "complete" | "failed" | "free-run",
+  s: Signal
+): Line {
+  const name = s.athleteName;
+  const km = (s.motion.distanceMeters / 1000).toFixed(2);
+  const mins = Math.max(1, Math.round(s.motion.elapsedMs / 60000));
+
+  const complete = [
+    `That's the whistle — ${name} hits the target. ${km} kilometres in ${mins} on the clock. That's what they pay the scouts for.`,
+    `Goal delivered. ${name} puts ${km} kilometres in the book. The scoreboard respects it. The crowd respects it. We respect it.`,
+    `Paid in full. ${name} lands the goal clean. A performance that will age well.`,
+  ];
+  const failed = [
+    `The clock wins this round. ${name} came up short — ${km} kilometres, ${mins} minutes, no shame. The scouts are already whispering about the rematch.`,
+    `Not today — but honestly, every professional has this kind of session and lies about it later. ${name}, take the data, reload, come back.`,
+    `Final whistle without the goal. ${km} kilometres banked all the same. This one goes in the "character building" folder.`,
+  ];
+  const freeRun = [
+    `And we're off the air. ${name} with ${km} kilometres in ${mins} minutes — no target, just vibes, and the vibes held.`,
+    `Broadcast closes. ${name} earned ${km} kilometres of footage for their trouble. The crowd is standing. Quietly, but standing.`,
+    `That's the sign-off. ${km} kilometres on the book for ${name}. ${mins} minutes the commentator will remember forever.`,
+  ];
+
+  const pool = kind === "complete" ? complete : kind === "failed" ? failed : freeRun;
+  return { trigger: "signoff", voice: "play", urgency: 3, text: rand(pool) };
+}
+
 export type EngineState = {
   coldOpenIndex: number;        // -1 done; else index into the cold-open script
   hasOpened: boolean;

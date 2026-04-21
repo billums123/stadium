@@ -16,21 +16,34 @@ import { AthleteName } from "./components/AthleteName";
 import { Confetti } from "./components/Confetti";
 import { CountdownOverlay } from "./components/CountdownOverlay";
 import { PermissionPrimer } from "./components/PermissionPrimer";
+import { RecapScreen } from "./components/RecapScreen";
 import { wasPrimerDone } from "./lib/permissions";
 
 function App() {
   const [settings, updateSettings] = useSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [screen, setScreen] = useState<"landing" | "live">("landing");
+  const [screen, setScreen] = useState<"landing" | "live" | "recap">("landing");
   const [primerDone, setPrimerDone] = useState<boolean>(() => wasPrimerDone());
 
   const broadcast = useBroadcast(settings);
   const { status } = broadcast;
 
   useEffect(() => {
-    if (status.phase === "live" && screen === "landing") setScreen("live");
-    if (status.phase === "idle" && screen === "live") setScreen("landing");
+    if (status.phase === "live" && screen !== "live") setScreen("live");
+    else if (status.phase === "recap" && screen !== "recap") setScreen("recap");
+    else if (status.phase === "idle" && screen !== "landing") setScreen("landing");
   }, [status.phase, screen]);
+
+  // Confetti on entering recap with goal complete — fires exactly once.
+  const prevRecapOutcome = useRef<string | null>(null);
+  useEffect(() => {
+    const outcome = status.recap?.goalOutcome ?? null;
+    if (prevRecapOutcome.current == null && outcome === "complete") {
+      const t = setTimeout(() => setConfettiTrigger((n) => n + 1), 120);
+      return () => clearTimeout(t);
+    }
+    prevRecapOutcome.current = outcome;
+  }, [status.recap?.goalOutcome]);
 
   // Confetti burst when the goal ticks over to complete.
   const [confettiTrigger, setConfettiTrigger] = useState(0);
@@ -67,7 +80,11 @@ function App() {
         phase={status.phase}
       />
 
-      <main className="mx-auto flex w-full max-w-xl flex-col gap-3 px-3 pb-28 pt-3 sm:gap-4 sm:px-4">
+      <main
+        className={`mx-auto flex w-full max-w-xl flex-col gap-3 px-3 pt-3 sm:gap-4 sm:px-4 ${
+          screen === "recap" ? "pb-10" : "pb-28"
+        }`}
+      >
         {screen === "landing" ? (
           <motion.div
             key="landing"
@@ -94,6 +111,8 @@ function App() {
               <Pillars />
             </div>
           </motion.div>
+        ) : screen === "recap" ? (
+          <RecapScreen status={status} onNewBroadcast={broadcast.newBroadcast} />
         ) : (
           <motion.div
             key="live"
@@ -115,22 +134,24 @@ function App() {
         )}
       </main>
 
-      <BottomBar
-        phase={status.phase}
-        onStart={() => {
-          haptic("press");
-          broadcast.start();
-        }}
-        onStop={() => {
-          haptic("press");
-          broadcast.stop();
-        }}
-        onSimulate={broadcast.simulate}
-        onForceLine={() => {
-          haptic("press");
-          broadcast.forceLine();
-        }}
-      />
+      {screen !== "recap" && (
+        <BottomBar
+          phase={status.phase}
+          onStart={() => {
+            haptic("press");
+            broadcast.start();
+          }}
+          onStop={() => {
+            haptic("press");
+            broadcast.stop();
+          }}
+          onSimulate={broadcast.simulate}
+          onForceLine={() => {
+            haptic("press");
+            broadcast.forceLine();
+          }}
+        />
+      )}
 
       <FlashOverlay line={status.lastLine} />
       <Confetti trigger={confettiTrigger} />
@@ -151,7 +172,7 @@ function TopBar({
   phase,
 }: {
   onOpenSettings: () => void;
-  phase: "idle" | "warming" | "live" | "stopping";
+  phase: "idle" | "warming" | "live" | "stopping" | "recap";
 }) {
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between border-b border-[var(--color-line)] bg-[var(--color-ink)]/85 px-4 py-3 backdrop-blur">
@@ -248,7 +269,7 @@ function BottomBar({
   onSimulate,
   onForceLine,
 }: {
-  phase: "idle" | "warming" | "live" | "stopping";
+  phase: "idle" | "warming" | "live" | "stopping" | "recap";
   onStart: () => void;
   onStop: () => void;
   onSimulate: (kmh: number) => void;

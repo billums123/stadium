@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 
 type Props = {
-  phase: "idle" | "warming" | "live" | "stopping";
+  phase: "idle" | "warming" | "live" | "stopping" | "recap";
   onStart: () => void;
   onStop: () => void;
 };

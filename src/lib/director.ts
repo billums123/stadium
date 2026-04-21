@@ -453,6 +453,52 @@ function buildPrompts(
   return { system, user: lines.join("\n") };
 }
 
+/**
+ * session-recap spec R7 / R8 — prompt builder for the closing line
+ * that runs on stop. Not routed through `plan()` because the recap
+ * has no cooldown / interlude logic; it's a single shot.
+ */
+export function buildRecapPrompts(opts: {
+  athleteName: string;
+  outcome: "complete" | "failed" | "none";
+  totalDistanceM: number;
+  totalTimeMs: number;
+  peakKmh: number;
+  avgKmh: number;
+  peakHype: number;
+  careerAfterSessions: number;
+  careerAfterTotalKm: number;
+}): { system: string; user: string } {
+  const system = SYSTEM_PROMPT;
+  const km = (opts.totalDistanceM / 1000).toFixed(2);
+  const mins = Math.max(1, Math.round(opts.totalTimeMs / 60_000));
+  const lines: string[] = [];
+  lines.push(`Athlete: ${opts.athleteName}`);
+  lines.push(`Voice: PLAY-BY-PLAY (primary, excitable)`);
+  lines.push(`Event: session-recap`);
+  lines.push(`Goal outcome: ${opts.outcome}`);
+  lines.push(`Total distance: ${km} km`);
+  lines.push(`Total time: ${mins} min`);
+  lines.push(`Peak pace: ${opts.peakKmh.toFixed(1)} km/h`);
+  lines.push(`Avg pace: ${opts.avgKmh.toFixed(1)} km/h`);
+  lines.push(`Peak hype: ${opts.peakHype}/100`);
+  lines.push(
+    `Career after this session: #${opts.careerAfterSessions}, ${opts.careerAfterTotalKm.toFixed(1)} km lifetime`
+  );
+  lines.push(
+    opts.outcome === "complete"
+      ? `Preferred audio tag: [triumphant, warm]`
+      : opts.outcome === "failed"
+      ? `Preferred audio tag: [measured, respectful]`
+      : `Preferred audio tag: [warm, broadcast-ready]`
+  );
+  lines.push("");
+  lines.push(
+    "Write the closing broadcast line. ONE or TWO short sentences, under 35 words. Reference the actual numbers — the distance, the time, or the pace. If the goal was hit, sound earned (not loud). If failed, be generous and set up the rematch. If there was no goal, celebrate the act of showing up. Do not say 'live' or 'we are underway' — the session is over."
+  );
+  return { system, user: lines.join("\n") };
+}
+
 const SYSTEM_PROMPT = `You are a voice on STADIUM — a live AI sports broadcast for walks, runs, and bike rides. The athlete is an everyday person doing an everyday activity, and you are making it sound like a championship event.
 
 Rules:
