@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { BroadcastStatus } from "../hooks/useBroadcast";
 import { HypeMeter } from "./HypeMeter";
 import { shareCard } from "../lib/sharecard";
+import { haptic } from "../lib/haptics";
 
 type Props = {
   status: BroadcastStatus;
@@ -27,11 +28,13 @@ export function Scoreboard({ status, athleteName }: Props) {
 
   const onShare = async () => {
     if (sharing) return;
+    haptic("press");
     setSharing(true);
     try {
-      await shareCard({ athleteName, line: lastLine, motion: mo, hypeScore });
+      const result = await shareCard({ athleteName, line: lastLine, motion: mo, hypeScore });
+      if (result === "shared" || result === "downloaded") haptic("success");
     } catch {
-      /* user cancelled or browser refused */
+      haptic("fail");
     } finally {
       setSharing(false);
     }
@@ -39,39 +42,40 @@ export function Scoreboard({ status, athleteName }: Props) {
 
   return (
     <div className="relative overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-ink-2)]/95 shadow-[0_0_0_1px_rgba(255,255,255,0.04)] scanline">
-      <div className="flex items-center justify-between px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-[var(--color-crowd)]">
+      <div className="flex items-center justify-between px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-[var(--color-crowd)]">
         <span className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full rounded-full bg-[var(--color-blaze)] opacity-75 pulse-ring"></span>
             <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--color-blaze)]"></span>
           </span>
-          LIVE — STADIUM CH. 01
+          LIVE · CH. 01
         </span>
         <button
           type="button"
           onClick={onShare}
           disabled={sharing}
-          className="font-display text-[10px] uppercase tracking-[0.25em] text-[var(--color-chalk)]/70 hover:text-[var(--color-chalk)] disabled:opacity-50"
+          aria-label="Export photo-finish share card"
+          className="min-h-[36px] rounded-md border border-[var(--color-line)] px-2.5 font-display text-[10px] uppercase tracking-[0.22em] text-[var(--color-chalk)]/80 transition active:scale-95 hover:border-[var(--color-chalk)]/60 disabled:opacity-50"
         >
-          {sharing ? "rendering…" : "◉ photo finish"}
+          {sharing ? "rendering…" : "◉ SHARE"}
         </button>
       </div>
 
-      <div className="flex items-end justify-between gap-3 px-4 pb-3">
+      <div className="flex items-end justify-between gap-3 px-3 pb-2 sm:px-4 sm:pb-3">
         <div className="min-w-0">
-          <div className="text-[11px] uppercase tracking-[0.25em] text-[var(--color-crowd)]">Athlete</div>
-          <div className="font-display text-[clamp(1.9rem,7vw,3rem)] leading-none text-[var(--color-chalk)] truncate">
+          <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--color-crowd)]">Athlete</div>
+          <div className="font-display text-[clamp(1.7rem,8vw,3rem)] leading-[0.95] text-[var(--color-chalk)] truncate">
             {athleteName || "THE ATHLETE"}
           </div>
         </div>
         <div className="text-right shrink-0">
-          <div className="text-[11px] uppercase tracking-[0.25em] text-[var(--color-crowd)]">Hype</div>
+          <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--color-crowd)]">Hype</div>
           <motion.div
             key={hypeScore}
             initial={{ scale: 0.95, opacity: 0.5 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: "spring", stiffness: 300, damping: 18 }}
-            className="font-display text-[clamp(1.9rem,7vw,3rem)] leading-none text-[var(--color-volt)]"
+            className="font-display text-[clamp(1.7rem,8vw,3rem)] leading-[0.95] text-[var(--color-volt)]"
           >
             {hypeScore}
           </motion.div>
@@ -105,9 +109,9 @@ function Stat({
       ? "text-[var(--color-volt)]"
       : "text-[var(--color-chalk)]";
   return (
-    <div className="bg-[var(--color-ink-2)] px-3 py-2">
+    <div className="bg-[var(--color-ink-2)] px-2.5 py-1.5 sm:px-3 sm:py-2">
       <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-crowd)]">{label}</div>
-      <div className={`font-display text-2xl leading-none ${color}`}>{value}</div>
+      <div className={`font-display text-xl leading-tight sm:text-2xl sm:leading-none ${color}`}>{value}</div>
     </div>
   );
 }

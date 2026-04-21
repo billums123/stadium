@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useSettings } from "./lib/store";
 import { useBroadcast } from "./hooks/useBroadcast";
+import { haptic } from "./lib/haptics";
 import { Scoreboard } from "./components/Scoreboard";
 import { CaptionStream } from "./components/CaptionStream";
 import { Ticker } from "./components/Ticker";
@@ -9,6 +10,10 @@ import { BroadcastButton } from "./components/BroadcastButton";
 import { SettingsSheet } from "./components/SettingsSheet";
 import { SessionLog } from "./components/SessionLog";
 import { FlashOverlay } from "./components/FlashOverlay";
+import { GoalPicker } from "./components/GoalPicker";
+import { GoalHud } from "./components/GoalHud";
+import { AthleteName } from "./components/AthleteName";
+import { Confetti } from "./components/Confetti";
 
 function App() {
   const [settings, updateSettings] = useSettings();
@@ -23,6 +28,31 @@ function App() {
     if (status.phase === "idle" && screen === "live") setScreen("landing");
   }, [status.phase, screen]);
 
+  // Confetti burst when the goal ticks over to complete.
+  const [confettiTrigger, setConfettiTrigger] = useState(0);
+  const prevGoalStatus = useRef<string | null>(null);
+  useEffect(() => {
+    const s = status.goalProgress?.status ?? null;
+    if (prevGoalStatus.current !== "complete" && s === "complete") {
+      setConfettiTrigger((n) => n + 1);
+      haptic("success");
+    }
+    if (prevGoalStatus.current !== "failed" && s === "failed") {
+      haptic("fail");
+    }
+    prevGoalStatus.current = s;
+  }, [status.goalProgress?.status]);
+
+  // Ambient haptic on urgency-3 lines (milestone / surge / goal-complete).
+  const lastLineId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!status.lastLine) return;
+    const id = status.lastLine.text;
+    if (id === lastLineId.current) return;
+    lastLineId.current = id;
+    if (status.lastLine.urgency === 3) haptic("ambient");
+  }, [status.lastLine]);
+
   const micDot = useMemo(() => {
     if (status.interim) return "listening";
     if (status.transcript) return "heard";
@@ -31,9 +61,15 @@ function App() {
 
   return (
     <div className="relative min-h-dvh bg-[var(--color-ink)] stadium-grain">
-      <TopBar onOpenSettings={() => setSettingsOpen(true)} phase={status.phase} />
+      <TopBar
+        onOpenSettings={() => {
+          haptic("tap");
+          setSettingsOpen(true);
+        }}
+        phase={status.phase}
+      />
 
-      <main className="mx-auto flex w-full max-w-xl flex-col gap-4 px-4 pb-28 pt-3">
+      <main className="mx-auto flex w-full max-w-xl flex-col gap-3 px-3 pb-28 pt-3 sm:gap-4 sm:px-4">
         {screen === "landing" ? (
           <motion.div
             key="landing"
@@ -43,8 +79,21 @@ function App() {
             className="flex flex-col gap-4"
           >
             <Hero />
+            <AthleteName
+              value={settings.athleteName}
+              onChange={(athleteName) => updateSettings({ athleteName })}
+            />
+            <GoalPicker
+              goal={settings.goal}
+              onChange={(goal) => {
+                haptic("tap");
+                updateSettings({ goal });
+              }}
+            />
             <Ticker />
-            <Pillars />
+            <div className="hidden sm:block">
+              <Pillars />
+            </div>
           </motion.div>
         ) : (
           <motion.div
@@ -52,9 +101,10 @@ function App() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
-            className="flex flex-col gap-4"
+            className="flex flex-col gap-3"
           >
             <Scoreboard status={status} athleteName={settings.athleteName} />
+            {status.goalProgress && <GoalHud progress={status.goalProgress} />}
             <CaptionStream line={status.lastLine} speaking={status.speaking} />
             <MicCard interim={status.interim} transcript={status.transcript} dot={micDot} />
             <SessionLog history={status.history} />
@@ -69,13 +119,23 @@ function App() {
 
       <BottomBar
         phase={status.phase}
-        onStart={broadcast.start}
-        onStop={broadcast.stop}
+        onStart={() => {
+          haptic("press");
+          broadcast.start();
+        }}
+        onStop={() => {
+          haptic("press");
+          broadcast.stop();
+        }}
         onSimulate={broadcast.simulate}
-        onForceLine={broadcast.forceLine}
+        onForceLine={() => {
+          haptic("press");
+          broadcast.forceLine();
+        }}
       />
 
       <FlashOverlay line={status.lastLine} />
+      <Confetti trigger={confettiTrigger} />
 
       <SettingsSheet
         open={settingsOpen}
@@ -113,7 +173,8 @@ function TopBar({
       </div>
       <button
         onClick={onOpenSettings}
-        className="rounded-md border border-[var(--color-line)] px-3 py-1.5 font-display text-xs uppercase tracking-[0.2em] text-[var(--color-chalk)]/80 hover:border-[var(--color-chalk)]"
+        aria-label="Open settings"
+        className="min-h-[40px] min-w-[40px] rounded-md border border-[var(--color-line)] px-3 font-display text-xs uppercase tracking-[0.2em] text-[var(--color-chalk)]/80 active:scale-95 hover:border-[var(--color-chalk)]"
       >
         settings
       </button>
@@ -123,7 +184,7 @@ function TopBar({
 
 function Hero() {
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-[var(--color-line)] bg-gradient-to-b from-[var(--color-ink-2)] to-[var(--color-ink)] px-5 py-8 scanline">
+    <section className="relative overflow-hidden rounded-2xl border border-[var(--color-line)] bg-gradient-to-b from-[var(--color-ink-2)] to-[var(--color-ink)] px-4 py-6 scanline sm:px-5 sm:py-8">
       <div className="absolute -top-10 right-2 font-display text-[10rem] leading-none text-[var(--color-chalk)]/[0.03]">
         STADIUM
       </div>
@@ -131,16 +192,16 @@ function Hero() {
         <p className="font-display text-[10px] uppercase tracking-[0.5em] text-[var(--color-blaze)]">
           Live AI Broadcast · Ch. 01
         </p>
-        <h1 className="mt-2 font-display text-[clamp(3rem,14vw,5.5rem)] leading-[0.88] text-[var(--color-chalk)]">
+        <h1 className="mt-2 font-display text-[clamp(2.5rem,13vw,5.5rem)] leading-[0.88] text-[var(--color-chalk)]">
           EVERY STEP.
           <br />
           <span className="text-[var(--color-blaze)]">THE MAIN</span>
           <br />
           EVENT.
         </h1>
-        <p className="mt-3 max-w-sm text-[15px] leading-snug text-[var(--color-chalk)]/80">
+        <p className="mt-3 max-w-sm text-[14px] leading-snug text-[var(--color-chalk)]/80 sm:text-[15px]">
           An AI sports broadcast for your walk, run, or ride. You move, a pro-grade AI commentator goes feral.
-          Crowd roars included. Phone in a pocket, headphones in, GO.
+          Phone in a pocket, headphones in, GO.
         </p>
       </div>
     </section>
@@ -224,25 +285,25 @@ function BottomBar({
 }) {
   const isLive = phase === "live";
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--color-line)] bg-[var(--color-ink)]/90 px-4 py-3 backdrop-blur pb-[max(env(safe-area-inset-bottom,0.75rem),0.75rem)]">
-      <div className="mx-auto flex w-full max-w-xl items-center justify-between gap-3">
+    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--color-line)] bg-[var(--color-ink)]/92 px-3 pb-[max(env(safe-area-inset-bottom,0.5rem),0.5rem)] pt-2 backdrop-blur sm:px-4 sm:pt-3">
+      <div className="mx-auto flex w-full max-w-xl items-center justify-between gap-2">
         {isLive ? (
           <ActionButton label="WALK" sub="sim" onClick={() => onSimulate(5)} />
         ) : (
-          <div className="w-[84px]" />
+          <div className="w-[78px] sm:w-[84px]" />
         )}
         <BroadcastButton phase={phase} onStart={onStart} onStop={onStop} />
         {isLive ? (
           <ActionButton label="HYPE" sub="line" accent onClick={onForceLine} />
         ) : (
-          <div className="w-[84px]" />
+          <div className="w-[78px] sm:w-[84px]" />
         )}
       </div>
       {isLive && (
-        <div className="mx-auto mt-2 flex w-full max-w-xl justify-center">
+        <div className="mx-auto mt-1.5 flex w-full max-w-xl justify-center">
           <button
             onClick={() => onSimulate(11)}
-            className="rounded-md border border-[var(--color-line)] bg-[var(--color-ink-2)]/70 px-3 py-1 font-display text-[11px] uppercase tracking-[0.25em] text-[var(--color-chalk)]/70 hover:border-[var(--color-chalk)]/60"
+            className="min-h-[36px] rounded-md border border-[var(--color-line)] bg-[var(--color-ink-2)]/70 px-3 py-1 font-display text-[11px] uppercase tracking-[0.25em] text-[var(--color-chalk)]/70 active:scale-95 hover:border-[var(--color-chalk)]/60"
           >
             sim · run pace
           </button>
@@ -266,7 +327,7 @@ function ActionButton({
   return (
     <button
       onClick={onClick}
-      className={`flex w-[84px] flex-col items-center rounded-lg border px-3 py-2 transition ${
+      className={`flex min-h-[56px] w-[78px] flex-col items-center justify-center rounded-lg border px-2 py-2 transition active:scale-95 sm:w-[84px] ${
         accent
           ? "border-[var(--color-volt)]/60 bg-[var(--color-volt)]/10 text-[var(--color-volt)] hover:border-[var(--color-volt)]"
           : "border-[var(--color-line)] bg-[var(--color-ink-2)]/80 text-[var(--color-chalk)] hover:border-[var(--color-chalk)]/60"

@@ -133,13 +133,30 @@ export async function listVoices(apiKey: string): Promise<Voice[]> {
   return json.voices ?? [];
 }
 
-export async function verifyKey(apiKey: string): Promise<boolean> {
+export type KeyStatus = "ok" | "scoped" | "invalid" | "network-error";
+
+/**
+ * A 401 with `missing_permissions` means the key is real but narrowly
+ * scoped — fine for STADIUM as long as it has the endpoints we actually
+ * call. Any other failure code is treated as invalid.
+ */
+export async function checkKey(apiKey: string): Promise<KeyStatus> {
   try {
     const res = await fetch(`${BASE}/user`, { headers: { "xi-api-key": apiKey } });
-    return res.ok;
+    if (res.ok) return "ok";
+    if (res.status === 401) {
+      const body = await res.text().catch(() => "");
+      return body.includes("missing_permissions") ? "scoped" : "invalid";
+    }
+    return "invalid";
   } catch {
-    return false;
+    return "network-error";
   }
+}
+
+export async function verifyKey(apiKey: string): Promise<boolean> {
+  const s = await checkKey(apiKey);
+  return s === "ok" || s === "scoped";
 }
 
 export function blobToObjectUrl(blob: Blob): string {

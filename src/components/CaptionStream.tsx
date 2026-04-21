@@ -32,9 +32,9 @@ export function CaptionStream({ line, speaking }: { line: Line | null; speaking:
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-          className={`relative rounded-xl border-2 ${urgencyAccent} bg-[var(--color-ink-2)]/80 px-4 py-4 backdrop-blur`}
+          className={`relative rounded-xl border-2 ${urgencyAccent} bg-[var(--color-ink-2)]/80 px-3 py-3 backdrop-blur sm:px-4 sm:py-4`}
         >
-          <div className="font-display text-[clamp(1.3rem,5.5vw,2.1rem)] leading-[1.08] text-balance">
+          <div className="font-display text-[clamp(1.15rem,5vw,2.1rem)] leading-[1.1] text-balance">
             {line ? line.text : "Awaiting broadcast. Press the button."}
           </div>
           {speaking && (
