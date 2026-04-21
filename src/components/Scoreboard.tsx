@@ -4,10 +4,12 @@ import type { BroadcastStatus } from "../hooks/useBroadcast";
 import { HypeMeter } from "./HypeMeter";
 import { shareCard } from "../lib/sharecard";
 import { haptic } from "../lib/haptics";
+import { formatDistance, formatPace, paceIn, type UnitSystem } from "../lib/units";
 
 type Props = {
   status: BroadcastStatus;
   athleteName: string;
+  units: UnitSystem;
 };
 
 function fmtDuration(ms: number) {
@@ -17,12 +19,7 @@ function fmtDuration(ms: number) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function fmtDistance(m: number) {
-  if (m < 1000) return `${Math.round(m)} m`;
-  return `${(m / 1000).toFixed(2)} km`;
-}
-
-export function Scoreboard({ status, athleteName }: Props) {
+export function Scoreboard({ status, athleteName, units }: Props) {
   const { motion: mo, hypeScore, speaking, lastLine } = status;
   const [sharing, setSharing] = useState(false);
 
@@ -31,7 +28,7 @@ export function Scoreboard({ status, athleteName }: Props) {
     haptic("press");
     setSharing(true);
     try {
-      const result = await shareCard({ athleteName, line: lastLine, motion: mo, hypeScore });
+      const result = await shareCard({ athleteName, line: lastLine, motion: mo, hypeScore, units });
       if (result === "shared" || result === "downloaded") haptic("success");
     } catch {
       haptic("fail");
@@ -39,6 +36,8 @@ export function Scoreboard({ status, athleteName }: Props) {
       setSharing(false);
     }
   };
+
+  const pacePlain = paceIn(mo.paceKmh, units);
 
   return (
     <div className="relative overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-ink-2)]/95 shadow-[0_0_0_1px_rgba(255,255,255,0.04)] scanline">
@@ -84,8 +83,8 @@ export function Scoreboard({ status, athleteName }: Props) {
 
       <div className="grid grid-cols-3 gap-px bg-[var(--color-line)] border-t border-[var(--color-line)]">
         <Stat label="Time" value={fmtDuration(mo.elapsedMs)} accent={speaking ? "blaze" : "chalk"} />
-        <Stat label="Distance" value={fmtDistance(mo.distanceMeters)} accent="chalk" />
-        <Stat label="Pace" value={`${mo.paceKmh.toFixed(1)} kmh`} accent={mo.paceKmh > 8 ? "volt" : "chalk"} />
+        <Stat label="Distance" value={formatDistance(mo.distanceMeters, units)} accent="chalk" />
+        <Stat label="Pace" value={formatPace(mo.paceKmh, units)} accent={pacePlain > (units === "imperial" ? 5 : 8) ? "volt" : "chalk"} />
       </div>
 
       <HypeMeter value={hypeScore} />

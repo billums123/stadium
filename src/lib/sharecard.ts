@@ -8,6 +8,7 @@ import type { Line } from "./commentary";
 import type { MotionState } from "./motion";
 import type { RecapSnapshot } from "./recap";
 import { stripAudioTags } from "./tags";
+import { formatDistance as fmtDist, formatPace as fmtPace, paceUnit, type UnitSystem } from "./units";
 
 export type ShareCardInput = {
   athleteName: string;
@@ -17,6 +18,8 @@ export type ShareCardInput = {
   /** When present, renders the FINAL WHISTLE recap chrome instead of
    *  the live LIVE · CH. 01 treatment. */
   recap?: RecapSnapshot | null;
+  /** User's unit preference — defaults to imperial for stats. */
+  units?: UnitSystem;
 };
 
 const W = 1080;
@@ -114,18 +117,22 @@ export async function renderShareCard(input: ShareCardInput): Promise<Blob> {
   const statsY = 560;
   const padX = 70;
   const colW = (W - padX * 2) / 3;
-  const paceValue = r ? r.avgKmh : input.motion.paceKmh;
+  const units: UnitSystem = input.units ?? "imperial";
+  const paceKmh = r ? r.avgKmh : input.motion.paceKmh;
   const paceLabel = r ? "AVG" : "PACE";
+  const paceString = `${fmtPace(paceKmh, units)}`; // e.g. "7.2 mph" or "11.5 km/h"
+  // Compact the pace label on the card — "7.2 mph" not "7.2 miles per hour"
+  const paceCompact = paceString.replace(/ (mph|km\/h)$/, ` ${paceUnit(units)}`);
   drawStat(ctx, padX + colW * 0, statsY, colW, "TIME", fmtDuration(input.motion.elapsedMs), "#f5f2e8");
-  drawStat(ctx, padX + colW * 1, statsY, colW, "DIST", fmtDistance(input.motion.distanceMeters), "#f5f2e8");
+  drawStat(ctx, padX + colW * 1, statsY, colW, "DIST", fmtDist(input.motion.distanceMeters, units), "#f5f2e8");
   drawStat(
     ctx,
     padX + colW * 2,
     statsY,
     colW,
     paceLabel,
-    `${paceValue.toFixed(1)} kmh`,
-    paceValue > 8 ? "#f5ff1f" : "#f5f2e8"
+    paceCompact,
+    paceKmh > 8 ? "#f5ff1f" : "#f5f2e8"
   );
 
   // Hype meter bar.
@@ -282,7 +289,3 @@ function fmtDuration(ms: number) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function fmtDistance(m: number) {
-  if (m < 1000) return `${Math.round(m)} m`;
-  return `${(m / 1000).toFixed(2)} km`;
-}

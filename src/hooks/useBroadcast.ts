@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createMotionTracker, type MotionState } from "../lib/motion";
 import type { Line, Voice } from "../lib/commentary";
 import { synthesizeSpeech } from "../lib/elevenlabs";
-import { loadCrowdBed, loadMusicBed, fadeTo } from "../lib/ambient";
+import { loadCrowdBed, loadMusicBed, fadeTo, musicVolumeFor } from "../lib/ambient";
 import { acquireWakeLock, type WakeLockHandle } from "../lib/wakelock";
 import { loadCareer, recordSession, saveCareer, type Career } from "../lib/career";
 import {
@@ -255,6 +255,16 @@ export function useBroadcast(settings: Settings) {
           fadeTo(crowdAudioRef.current, target, 600);
         }
       }
+
+      // Pump-up music swell: rise toward goal-wire (or on a free-run
+      // surge), fade back when things cool. Skip while TTS is
+      // speaking — duckBeds handles that.
+      if (musicAudioRef.current && !speakingRef.current) {
+        const target = musicVolumeFor(progress?.distancePct ?? null, lastIntensityRef.current);
+        if (Math.abs(musicAudioRef.current.volume - target) > 0.015) {
+          fadeTo(musicAudioRef.current, target, 900);
+        }
+      }
     });
     trackerRef.current = tracker;
     await tracker.start();
@@ -273,6 +283,7 @@ export function useBroadcast(settings: Settings) {
           hypeFloor: settings.hypeLevel,
           career: careerRef.current,
           goal: settings.goal,
+          units: settings.units,
         },
         lastLineRef.current
       );
@@ -378,6 +389,7 @@ export function useBroadcast(settings: Settings) {
       elapsedInSessionMs: frozenMotion.elapsedMs,
       hypeLevel: settings.hypeLevel,
       career: nextCareer,
+      units: settings.units,
     });
 
     let closingText = fallbackLine.text;
@@ -392,6 +404,7 @@ export function useBroadcast(settings: Settings) {
         peakHype: recap.peakHype,
         careerAfterSessions: nextCareer.sessions,
         careerAfterTotalKm: nextCareer.totalKm,
+        units: settings.units,
       });
       const generated = await generateLine({
         system: prompts.system,
@@ -473,6 +486,7 @@ export function useBroadcast(settings: Settings) {
         hypeFloor: settings.hypeLevel,
         career: careerRef.current,
         goal: settings.goal,
+        units: settings.units,
       },
       lastLineRef.current
     );

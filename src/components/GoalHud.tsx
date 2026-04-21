@@ -1,12 +1,14 @@
 import { motion } from "framer-motion";
 import type { GoalProgress } from "../lib/goal";
 import { formatGoalDistance, formatGoalTime } from "../lib/goal";
+import { formatDistance, type UnitSystem } from "../lib/units";
 
 type Props = {
   progress: GoalProgress | null;
+  units: UnitSystem;
 };
 
-export function GoalHud({ progress }: Props) {
+export function GoalHud({ progress, units }: Props) {
   if (!progress) return null;
 
   const { goal, distancePct, timePct, metersAhead, timeLeftMs, status } = progress;
@@ -29,9 +31,9 @@ export function GoalHud({ progress }: Props) {
       : status === "failed"
       ? "CLOCK GONE"
       : metersAhead > 2
-      ? `+${Math.round(metersAhead)} m`
+      ? `+${formatDistance(metersAhead, units)}`
       : metersAhead < -2
-      ? `${Math.round(metersAhead)} m`
+      ? `−${formatDistance(-metersAhead, units)}`
       : "on pace";
 
   const timeLeftText =
@@ -45,7 +47,7 @@ export function GoalHud({ progress }: Props) {
         <div className="min-w-0">
           <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--color-crowd)]">goal</div>
           <div className="font-display text-base leading-tight text-[var(--color-chalk)] sm:text-lg sm:leading-none truncate">
-            {formatGoalDistance(goal)} · {formatGoalTime(goal)}
+            {formatGoalDistance(goal, units)} · {formatGoalTime(goal)}
           </div>
         </div>
         <div className="text-right shrink-0">

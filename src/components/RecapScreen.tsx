@@ -5,10 +5,12 @@ import { haptic } from "../lib/haptics";
 import { shareCard } from "../lib/sharecard";
 import { stripAudioTags } from "../lib/tags";
 import { formatGoalDistance, formatGoalTime } from "../lib/goal";
+import { formatDistance, formatPace, type UnitSystem } from "../lib/units";
 
 type Props = {
   status: BroadcastStatus;
   onNewBroadcast: () => void;
+  units: UnitSystem;
 };
 
 function fmtTime(ms: number) {
@@ -18,12 +20,7 @@ function fmtTime(ms: number) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function fmtDistance(m: number) {
-  if (m < 1000) return `${Math.round(m)} m`;
-  return `${(m / 1000).toFixed(2)} km`;
-}
-
-export function RecapScreen({ status, onNewBroadcast }: Props) {
+export function RecapScreen({ status, onNewBroadcast, units }: Props) {
   const recap = status.recap;
   const [sharing, setSharing] = useState(false);
 
@@ -50,6 +47,7 @@ export function RecapScreen({ status, onNewBroadcast }: Props) {
         motion: status.motion,
         hypeScore: recap.peakHype,
         recap,
+        units,
       });
       if (result === "shared" || result === "downloaded") haptic("success");
     } catch {
@@ -91,17 +89,17 @@ export function RecapScreen({ status, onNewBroadcast }: Props) {
       {/* Core stats */}
       <div className="grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-line)]">
         <Stat label="Time" value={fmtTime(recap.totalTimeMs)} />
-        <Stat label="Distance" value={fmtDistance(recap.totalDistanceM)} />
+        <Stat label="Distance" value={formatDistance(recap.totalDistanceM, units)} />
         <Stat
           label="Avg pace"
-          value={`${recap.avgKmh.toFixed(1)} kmh`}
+          value={formatPace(recap.avgKmh, units)}
           accent={recap.avgKmh > 8 ? "volt" : "chalk"}
         />
       </div>
 
       {/* Secondary stats */}
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-line)]">
-        <Stat label="Peak pace" value={`${recap.peakKmh.toFixed(1)} kmh`} accent="volt" />
+        <Stat label="Peak pace" value={formatPace(recap.peakKmh, units)} accent="volt" />
         <Stat label="Peak hype" value={`${recap.peakHype}/100`} accent="blaze" />
       </div>
 
@@ -111,7 +109,7 @@ export function RecapScreen({ status, onNewBroadcast }: Props) {
             tonight's goal
           </div>
           <div className="font-display text-base leading-tight text-[var(--color-chalk)]">
-            {formatGoalDistance(recap.goal)} · {formatGoalTime(recap.goal)}
+            {formatGoalDistance(recap.goal, units)} · {formatGoalTime(recap.goal)}
           </div>
         </div>
       )}

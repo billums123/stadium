@@ -9,13 +9,15 @@ import {
   type GoalUnit,
 } from "../lib/goal";
 import { possessiveSlot } from "../lib/timeOfDay";
+import type { UnitSystem } from "../lib/units";
 
 type Props = {
   goal: Goal | null;
   onChange: (goal: Goal | null) => void;
+  units: UnitSystem;
 };
 
-export function GoalPicker({ goal, onChange }: Props) {
+export function GoalPicker({ goal, onChange, units }: Props) {
   const matchedPresetId = goal
     ? PRESET_GOALS.find(
         (p) =>
@@ -35,7 +37,7 @@ export function GoalPicker({ goal, onChange }: Props) {
         </div>
         {goal && (
           <div className="font-display text-[11px] uppercase tracking-[0.25em] text-[var(--color-chalk)]/70">
-            {formatGoalDistance(goal)} · {formatGoalTime(goal)}
+            {formatGoalDistance(goal, units)} · {formatGoalTime(goal)}
           </div>
         )}
       </div>
@@ -89,7 +91,7 @@ export function GoalPicker({ goal, onChange }: Props) {
             transition={{ duration: 0.22 }}
             className="overflow-hidden"
           >
-            <CustomGoalForm goal={goal} onChange={onChange} />
+            <CustomGoalForm goal={goal} onChange={onChange} units={units} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -104,7 +106,7 @@ export function GoalPicker({ goal, onChange }: Props) {
   );
 }
 
-function CustomGoalForm({ goal, onChange }: Props) {
+function CustomGoalForm({ goal, onChange, units: _units }: Props) {
   // Seed from current goal, otherwise a reasonable default (¼ mi / 90 s).
   const seedMeters = goal?.distanceMeters ?? 0.25 * MILE_METERS;
   const seedMs = goal?.timeMs ?? 90_000;

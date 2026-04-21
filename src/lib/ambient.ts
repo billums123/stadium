@@ -12,7 +12,7 @@ const CROWD_PROMPT =
   "A massive excited stadium crowd roaring, continuous ambient cheer, distant whistles and claps, no music, loopable";
 
 const MUSIC_PROMPT =
-  "Upbeat cinematic sports anthem, big driving drums, triumphant brass, driving bass line, no vocals, heroic, loopable, 130 bpm";
+  "Driving pump-up stadium anthem for a workout montage. Four-on-the-floor kick, heavy snare on 2 and 4, relentless synth bass pulse, gated reverb toms, rising filter sweeps that build into the chorus. Big triumphant brass stabs. No vocals, no chanting, no talking. Cinematic action-movie energy, 134 BPM, driving and forward, loopable so the end returns to the start cleanly.";
 
 let cachedCrowdUrl: string | null = null;
 let cachedMusicUrl: string | null = null;
@@ -59,6 +59,25 @@ export async function loadMusicBed(): Promise<HTMLAudioElement | null> {
   audio.preload = "auto";
   audio.src = cachedMusicUrl;
   return audio;
+}
+
+/**
+ * Music-bed volume target given a goal-progress percentage (0..1) and
+ * a hype score (0..100). The bed swells as goal approaches 100% —
+ * and on free-run sessions hype drives the swell instead. Capped at
+ * 0.34 so commentary still sits on top.
+ */
+export function musicVolumeFor(goalPct: number | null, hype: number): number {
+  const BASE = 0.14;
+  const CEILING = 0.34;
+  // Progress component: scale more aggressively past 60%, so the last
+  // stretch of the goal really lifts.
+  const p = goalPct != null ? Math.max(0, Math.min(1, goalPct)) : 0;
+  const progComponent = p < 0.6 ? p * 0.15 : 0.09 + (p - 0.6) * 0.5;
+  // Hype component: 0 at 0, ~0.12 at 100 — meaningful for free-run.
+  const hypeComponent = Math.max(0, Math.min(1, hype / 100)) * 0.12;
+  const picked = goalPct != null ? progComponent : hypeComponent;
+  return Math.min(CEILING, BASE + picked);
 }
 
 /**

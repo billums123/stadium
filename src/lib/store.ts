@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { DEFAULT_MODEL as DEFAULT_LLM_MODEL } from "./llm";
 import type { Goal } from "./goal";
+import type { UnitSystem } from "./units";
 
 export type Settings = {
   athleteName: string;
@@ -10,6 +11,7 @@ export type Settings = {
   useDynamic: boolean;   // LLM-generated lines on top of the template engine
   llmModel: string;
   goal: Goal | null;     // null = free run
+  units: UnitSystem;     // "metric" | "imperial"
 };
 
 const DEFAULTS: Settings = {
@@ -23,6 +25,7 @@ const DEFAULTS: Settings = {
   useDynamic: true,
   llmModel: DEFAULT_LLM_MODEL,
   goal: null,
+  units: "imperial",
 };
 
 const KEY = "stadium:settings:v1";

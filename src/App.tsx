@@ -15,6 +15,7 @@ import { GoalHud } from "./components/GoalHud";
 import { AthleteName } from "./components/AthleteName";
 import { Confetti } from "./components/Confetti";
 import { CountdownOverlay } from "./components/CountdownOverlay";
+import { WarmingOverlay } from "./components/WarmingOverlay";
 import { PermissionPrimer } from "./components/PermissionPrimer";
 import { RecapScreen } from "./components/RecapScreen";
 import { wasPrimerDone } from "./lib/permissions";
@@ -101,9 +102,17 @@ function App() {
             />
             <GoalPicker
               goal={settings.goal}
-              onChange={(goal) => {
+              units={settings.units}
+              onChange={(goal: import("./lib/goal").Goal | null) => {
                 haptic("tap");
                 updateSettings({ goal });
+              }}
+            />
+            <UnitsToggle
+              value={settings.units}
+              onChange={(units) => {
+                haptic("tap");
+                updateSettings({ units });
               }}
             />
             <Ticker />
@@ -112,7 +121,11 @@ function App() {
             </div>
           </motion.div>
         ) : screen === "recap" ? (
-          <RecapScreen status={status} onNewBroadcast={broadcast.newBroadcast} />
+          <RecapScreen
+            status={status}
+            units={settings.units}
+            onNewBroadcast={broadcast.newBroadcast}
+          />
         ) : (
           <motion.div
             key="live"
@@ -121,8 +134,8 @@ function App() {
             transition={{ duration: 0.3 }}
             className="flex flex-col gap-3"
           >
-            <Scoreboard status={status} athleteName={settings.athleteName} />
-            {status.goalProgress && <GoalHud progress={status.goalProgress} />}
+            <Scoreboard status={status} athleteName={settings.athleteName} units={settings.units} />
+            {status.goalProgress && <GoalHud progress={status.goalProgress} units={settings.units} />}
             <CaptionStream line={status.lastLine} speaking={status.speaking} />
             <SessionLog history={status.history} />
             {status.error && (
@@ -155,6 +168,8 @@ function App() {
 
       <FlashOverlay line={status.lastLine} />
       <Confetti trigger={confettiTrigger} />
+      {/* Loader: covers the silent gap between GO and the first beep */}
+      <WarmingOverlay active={status.phase === "warming" && status.countdown === null} />
       <CountdownOverlay value={status.countdown} />
 
       <SettingsSheet
@@ -328,6 +343,43 @@ function ActionButton({
       <div className="font-display text-[11px] uppercase tracking-[0.25em] opacity-75">{sub}</div>
       <div className="font-display text-lg leading-none">{label}</div>
     </button>
+  );
+}
+
+function UnitsToggle({
+  value,
+  onChange,
+}: {
+  value: "metric" | "imperial";
+  onChange: (v: "metric" | "imperial") => void;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-[var(--color-line)] bg-[var(--color-ink-2)]/60 px-3 py-2.5">
+      <div>
+        <div className="font-display text-[10px] uppercase tracking-[0.3em] text-[var(--color-crowd)]">
+          units
+        </div>
+        <div className="font-display text-sm uppercase tracking-wider text-[var(--color-chalk)]/75">
+          {value === "imperial" ? "miles · mph" : "kilometres · km/h"}
+        </div>
+      </div>
+      <div className="flex overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)]">
+        {(["imperial", "metric"] as const).map((u) => (
+          <button
+            key={u}
+            type="button"
+            onClick={() => onChange(u)}
+            className={`min-h-[44px] px-4 font-display text-sm uppercase tracking-[0.2em] transition active:scale-95 ${
+              value === u
+                ? "bg-[var(--color-blaze)]/20 text-[var(--color-chalk)]"
+                : "text-[var(--color-chalk)]/65 hover:text-[var(--color-chalk)]"
+            }`}
+          >
+            {u === "imperial" ? "mi" : "km"}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

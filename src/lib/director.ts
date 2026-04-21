@@ -17,6 +17,8 @@
 import type { MotionState } from "./motion";
 import type { GoalProgress } from "./goal";
 import { computeProgress, type Goal } from "./goal";
+import type { UnitSystem } from "./units";
+import { paceIn, paceUnitSpoken } from "./units";
 import {
   buildOpening,
   buildQuote,
@@ -44,6 +46,7 @@ export type DirectorSignal = {
   hypeFloor: number; // 1-5 user floor
   career: Career;
   goal: Goal | null;
+  units: UnitSystem;
 };
 
 export type Event =
@@ -123,15 +126,7 @@ export function plan(
 
   // R1 — cold-open plays the fixed script before the reactive engine starts.
   if (state.coldOpenIndex >= 0) {
-    const script = coldOpenScript({
-      athleteName: s.athleteName,
-      motion: s.motion,
-      lastTranscript: s.lastTranscript,
-      lastTranscriptAgeMs: s.lastTranscriptAgeMs,
-      elapsedInSessionMs: s.elapsedInSessionMs,
-      hypeLevel: s.hypeFloor,
-      career: s.career,
-    });
+    const script = coldOpenScript(asSig(s));
     const line = script[state.coldOpenIndex];
     const done = state.coldOpenIndex + 1 >= script.length;
     return {
@@ -251,10 +246,13 @@ export function plan(
     }
   }
 
-  // R4 — kilometre milestones.
-  const km = Math.floor(s.motion.distanceMeters / 1000);
-  if (km > state.lastKmAnnounced && km >= 1) {
-    const line = buildMilestoneKm(asSig(s), km);
+  // R4 — distance milestones. Count whole kilometres in metric,
+  // whole miles in imperial, so the commentator announces milestones
+  // in the athlete's preferred unit.
+  const unitMeters = s.units === "imperial" ? 1609.34 : 1000;
+  const reached = Math.floor(s.motion.distanceMeters / unitMeters);
+  if (reached > state.lastKmAnnounced && reached >= 1) {
+    const line = buildMilestoneKm(asSig(s), reached);
     return pack(state, s, progress, "milestone-km", line, {
       tag: "[shouting, triumphant]",
       next: {
@@ -262,7 +260,7 @@ export function plan(
         lastTriggerAt: now,
         lastPace: s.motion.paceKmh,
         lastVoice: "play",
-        lastKmAnnounced: km,
+        lastKmAnnounced: reached,
       },
     });
   }
@@ -343,6 +341,7 @@ function asSig(s: DirectorSignal) {
     elapsedInSessionMs: s.elapsedInSessionMs,
     hypeLevel: s.hypeFloor,
     career: s.career,
+    units: s.units,
   };
 }
 
@@ -416,36 +415,48 @@ function buildPrompts(
   tag?: string
 ): { system: string; user: string } {
   const system = SYSTEM_PROMPT;
+  const unitPhrase = paceUnitSpoken(s.units);
   const lines: string[] = [];
   lines.push(`Athlete: ${s.athleteName}`);
   lines.push(`Voice: ${voice === "play" ? "PLAY-BY-PLAY (primary, excitable)" : "COLOR COMMENTATOR (secondary, dry)"}`);
   lines.push(`Event: ${event}`);
   lines.push(`Intensity: ${intensity}/100`);
+  lines.push(`Preferred units: ${s.units} — when speaking about pace, use "${unitPhrase}", never switch systems mid-line.`);
   if (tag) lines.push(`Preferred audio tag: ${tag}`);
-  lines.push(`Pace: ${s.motion.paceKmh.toFixed(1)} km/h`);
-  lines.push(`Distance covered: ${Math.round(s.motion.distanceMeters)} m`);
+  lines.push(`Pace: ${paceIn(s.motion.paceKmh, s.units).toFixed(1)} ${unitPhrase}`);
+  const distMetric = s.units === "imperial" ? "miles" : "kilometres";
+  const distValue = s.units === "imperial"
+    ? (s.motion.distanceMeters / 1609.34).toFixed(2)
+    : (s.motion.distanceMeters / 1000).toFixed(2);
+  lines.push(`Distance covered: ${distValue} ${distMetric}`);
   lines.push(`Elapsed: ${Math.round(s.motion.elapsedMs / 1000)} s`);
   if (progress) {
     const m = progress.metersAhead;
+    const leadUnit = s.units === "imperial" ? 0.3048 : 1; // ~ft vs m
+    const leadLabel = s.units === "imperial" ? "ft" : "m";
     const lead =
-      m > 2 ? `ahead by ${Math.round(m)} m` :
-      m < -2 ? `behind by ${Math.round(-m)} m` :
+      m > 2 ? `ahead by ${Math.round(m / leadUnit)} ${leadLabel}` :
+      m < -2 ? `behind by ${Math.round(-m / leadUnit)} ${leadLabel}` :
       "on pace";
+    const goalDistValue = s.units === "imperial"
+      ? (progress.goal.distanceMeters / 1609.34).toFixed(2)
+      : (progress.goal.distanceMeters / 1000).toFixed(2);
     lines.push(
-      `Goal: ${Math.round(progress.goal.distanceMeters)} m in ${Math.round(progress.goal.timeMs / 1000)} s — currently ${lead}, ${(progress.distancePct * 100).toFixed(0)}% covered, ${Math.max(0, Math.round(progress.timeLeftMs / 1000))} s left, status "${progress.status}".`
+      `Goal: ${goalDistValue} ${distMetric} in ${Math.round(progress.goal.timeMs / 1000)} s — currently ${lead}, ${(progress.distancePct * 100).toFixed(0)}% covered, ${Math.max(0, Math.round(progress.timeLeftMs / 1000))} s left, status "${progress.status}".`
     );
     if (progress.requiredKmh != null && Number.isFinite(progress.requiredKmh)) {
-      lines.push(`Required finishing pace: ${progress.requiredKmh.toFixed(1)} km/h.`);
+      lines.push(`Required finishing pace: ${paceIn(progress.requiredKmh, s.units).toFixed(1)} ${unitPhrase}.`);
     }
   } else {
     lines.push("Goal: free run, no target.");
   }
   if (s.career.sessions > 0) {
-    lines.push(
-      `Career: broadcast #${s.career.sessions + 1}, ${s.career.totalKm.toFixed(1)} km lifetime, best pace ${s.career.bestPaceKmh.toFixed(1)} km/h.`
-    );
+    const lifetime = s.units === "imperial"
+      ? `${(s.career.totalKm * 0.621371).toFixed(1)} mi`
+      : `${s.career.totalKm.toFixed(1)} km`;
+    const bestPace = `${paceIn(s.career.bestPaceKmh, s.units).toFixed(1)} ${unitPhrase}`;
+    lines.push(`Career: broadcast #${s.career.sessions + 1}, ${lifetime} lifetime, best pace ${bestPace}.`);
   }
-  if (s.lastTranscript) lines.push(`Last mic quote from the athlete: "${s.lastTranscript.slice(0, 140)}"`);
 
   lines.push("");
   lines.push("Write the next broadcast line. ONE or TWO short sentences. Under 30 words.");
@@ -468,22 +479,31 @@ export function buildRecapPrompts(opts: {
   peakHype: number;
   careerAfterSessions: number;
   careerAfterTotalKm: number;
+  units: UnitSystem;
 }): { system: string; user: string } {
   const system = SYSTEM_PROMPT;
-  const km = (opts.totalDistanceM / 1000).toFixed(2);
+  const unitPhrase = paceUnitSpoken(opts.units);
+  const distName = opts.units === "imperial" ? "miles" : "kilometres";
+  const dist = opts.units === "imperial"
+    ? (opts.totalDistanceM / 1609.34).toFixed(2)
+    : (opts.totalDistanceM / 1000).toFixed(2);
   const mins = Math.max(1, Math.round(opts.totalTimeMs / 60_000));
   const lines: string[] = [];
   lines.push(`Athlete: ${opts.athleteName}`);
   lines.push(`Voice: PLAY-BY-PLAY (primary, excitable)`);
   lines.push(`Event: session-recap`);
+  lines.push(`Preferred units: ${opts.units} — pace as "${unitPhrase}", distance as "${distName}".`);
   lines.push(`Goal outcome: ${opts.outcome}`);
-  lines.push(`Total distance: ${km} km`);
+  lines.push(`Total distance: ${dist} ${distName}`);
   lines.push(`Total time: ${mins} min`);
-  lines.push(`Peak pace: ${opts.peakKmh.toFixed(1)} km/h`);
-  lines.push(`Avg pace: ${opts.avgKmh.toFixed(1)} km/h`);
+  lines.push(`Peak pace: ${paceIn(opts.peakKmh, opts.units).toFixed(1)} ${unitPhrase}`);
+  lines.push(`Avg pace: ${paceIn(opts.avgKmh, opts.units).toFixed(1)} ${unitPhrase}`);
   lines.push(`Peak hype: ${opts.peakHype}/100`);
+  const lifetime = opts.units === "imperial"
+    ? `${(opts.careerAfterTotalKm * 0.621371).toFixed(1)} ${distName}`
+    : `${opts.careerAfterTotalKm.toFixed(1)} ${distName}`;
   lines.push(
-    `Career after this session: #${opts.careerAfterSessions}, ${opts.careerAfterTotalKm.toFixed(1)} km lifetime`
+    `Career after this session: #${opts.careerAfterSessions}, ${lifetime} lifetime`
   );
   lines.push(
     opts.outcome === "complete"
@@ -504,7 +524,7 @@ const SYSTEM_PROMPT = `You are a voice on STADIUM — a live AI sports broadcast
 Rules:
 - Output exactly ONE line of commentary. ONE or TWO short sentences. Under 30 words total.
 - Match the voice role you're given. PLAY-BY-PLAY is excitable, live, leaning into moments. COLOR COMMENTATOR is dry, wry, observational — think mid-fifties analyst who has seen it all.
-- Tone is British-inflected, smart, occasionally absurdist. "Kilometres per hour", not "kph". Dry wit by default; crank the hype only on surges, milestones, final pushes, and goal completions.
+- Tone is British-inflected, smart, occasionally absurdist. Say pace units in full words ("kilometres per hour" or "miles per hour", per the preferred-units line in the user message) — never "kph" or "kmh" or "mph" as letters. Dry wit by default; crank the hype only on surges, milestones, final pushes, and goal completions.
 - Use ElevenLabs v3 audio tags in brackets to shape delivery. Match the intensity score:
     intensity 70-100: [shouting], [ecstatic], [breathless], [urgent]
     intensity 40-70:  [excited], [confident], [warm], [driving]

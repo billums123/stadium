@@ -12,6 +12,8 @@
 
 import type { MotionState } from "./motion";
 import type { Career } from "./career";
+import type { UnitSystem } from "./units";
+import { distanceUnitSpoken, paceIn, paceUnitSpoken } from "./units";
 
 export type Signal = {
   athleteName: string;
@@ -21,7 +23,33 @@ export type Signal = {
   elapsedInSessionMs: number;
   hypeLevel: number; // 1-5
   career: Career;
+  units: UnitSystem;
 };
+
+/**
+ * Convert the internal km/h pace to the athlete's preferred unit and
+ * produce the phrase the commentator says — used by every template
+ * that references pace aloud.
+ */
+function spokenPace(kmh: number, units: UnitSystem): string {
+  return `${paceIn(kmh, units).toFixed(1)} ${paceUnitSpoken(units)}`;
+}
+
+/** Same for distance ("3.2 miles" or "5 kilometres") in the athlete's units. */
+function spokenDistance(meters: number, units: UnitSystem): string {
+  if (units === "imperial") {
+    const mi = meters / 1609.34;
+    const w = mi === 1 ? "mile" : "miles";
+    return `${trimZero(mi)} ${w}`;
+  }
+  const km = meters / 1000;
+  const w = km === 1 ? "kilometre" : "kilometres";
+  return `${trimZero(km)} ${w}`;
+}
+
+function trimZero(n: number) {
+  return n.toFixed(2).replace(/\.?0+$/, "");
+}
 
 export type Voice = "play" | "color";
 
@@ -90,12 +118,16 @@ function maybePrefix(prob = 0.35): string {
 // ─── R1: Cold-open (pre-game show) ─────────────────────────────────────
 export function coldOpenScript(s: Signal): Line[] {
   const name = s.athleteName;
+  const lifetimeDistance =
+    s.units === "imperial"
+      ? `${Math.round(s.career.totalKm * 0.621371)} lifetime miles`
+      : `${Math.round(s.career.totalKm)} lifetime kilometres`;
   const careerTag =
     s.career.sessions === 0
       ? `a debut — no prior broadcasts on record`
       : s.career.sessions === 1
       ? `their second broadcast — the follow-up album`
-      : `broadcast number ${s.career.sessions + 1}, ${Math.round(s.career.totalKm)} lifetime kilometres on the board`;
+      : `broadcast number ${s.career.sessions + 1}, ${lifetimeDistance} on the board`;
 
   const hour = new Date().getHours();
   const slot =
@@ -156,53 +188,55 @@ export function buildQuote(s: Signal): Line {
 
 // ─── R3: Pace surge ────────────────────────────────────────────────────
 export function buildPaceSurge(s: Signal): Line {
-  const kmh = s.motion.paceKmh.toFixed(1);
+  const p = spokenPace(s.motion.paceKmh, s.units);
   const name = s.athleteName;
   const opts = [
-    `${maybePrefix()}${name} has found another gear. ${kmh} kilometres an hour. Where was that being kept.`,
-    `A shift. ${name} at ${kmh}. Somebody has decided today is the day.`,
-    `${maybePrefix()}that's a surge. ${kmh}. Not scheduled. Very welcome.`,
-    `${name} up to ${kmh}. The scouts just quietly moved forward one row.`,
-    `Second gear engaged. ${kmh} kmh. We are witnessing something.`,
+    `${maybePrefix()}${name} has found another gear. ${p}. Where was that being kept.`,
+    `A shift. ${name} at ${p}. Somebody has decided today is the day.`,
+    `${maybePrefix()}that's a surge. ${p}. Not scheduled. Very welcome.`,
+    `${name} up to ${p}. The scouts just quietly moved forward one row.`,
+    `Second gear engaged. ${p}. We are witnessing something.`,
   ];
   return { trigger: "pace-surge", voice: "play", urgency: 3, text: rand(opts) };
 }
 
 // ─── R3: Pace crash (measured, not panicked) ──────────────────────────
 export function buildPaceCrash(s: Signal): Line {
-  const kmh = s.motion.paceKmh.toFixed(1);
+  const p = spokenPace(s.motion.paceKmh, s.units);
   const name = s.athleteName;
   const opts = [
-    `Slight dip. ${name} at ${kmh}. Strategic, presumably.`,
-    `${kmh} kilometres an hour now. A recalibration. No cause for alarm, he says, checking the time.`,
-    `Pace check: ${kmh}. Saving something for the stretch, is the generous reading.`,
-    `A breather at ${kmh}. The kind champions take. Allegedly.`,
+    `Slight dip. ${name} at ${p}. Strategic, presumably.`,
+    `${p} now. A recalibration. No cause for alarm, he says, checking the time.`,
+    `Pace check: ${p}. Saving something for the stretch, is the generous reading.`,
+    `A breather at ${p}. The kind champions take. Allegedly.`,
   ];
   return { trigger: "pace-crash", voice: "play", urgency: 2, text: rand(opts) };
 }
 
 // ─── R2: Steady state ──────────────────────────────────────────────────
 export function buildSteady(s: Signal): Line {
-  const kmh = s.motion.paceKmh.toFixed(1);
+  const p = spokenPace(s.motion.paceKmh, s.units);
   const name = s.athleteName;
   const opts = [
-    `${name} settled into ${paceWord(s.motion.paceKmh)} — ${kmh} on the clock.`,
-    `Holding ${kmh}. Rhythmic. The kind of pace you'd describe as "fine", in a good way.`,
-    `Steady ${kmh} kmh. ${name} doing what ${name} does.`,
-    `${kmh} and quiet. Form looks intact. We are, if nothing else, consistent.`,
+    `${name} settled into ${paceWord(s.motion.paceKmh)} — ${p}.`,
+    `Holding ${p}. Rhythmic. The kind of pace you'd describe as "fine", in a good way.`,
+    `Steady ${p}. ${name} doing what ${name} does.`,
+    `${p} and quiet. Form looks intact. We are, if nothing else, consistent.`,
   ];
   return { trigger: "steady", voice: "play", urgency: 1, text: rand(opts) };
 }
 
-// ─── R4: Kilometre milestone ───────────────────────────────────────────
-export function buildMilestoneKm(s: Signal, km: number): Line {
+// ─── R4: Distance milestone (whole kilometres in metric, miles in imperial) ──
+export function buildMilestoneKm(s: Signal, n: number): Line {
   const name = s.athleteName;
+  const unit = distanceUnitSpoken(s.units, n !== 1);
+  const unitSingular = distanceUnitSpoken(s.units, false);
   const opts = [
-    `${ordinal(km)} kilometre — banked. ${name} ticks it off.`,
-    `That's ${km} in the book. ${name} does not look up. ${name} is locked in.`,
-    `${maybePrefix()}${km} kilometres. A round number in a round world.`,
-    `Mark it: kilometre ${km}. Put it in the ledger.`,
-    `${km} down. ${name} crosses the invisible line, the universe nods.`,
+    `${ordinal(n)} ${unitSingular} — banked. ${name} ticks it off.`,
+    `That's ${n} ${unit} in the book. ${name} does not look up. ${name} is locked in.`,
+    `${maybePrefix()}${n} ${unit}. A round number in a round world.`,
+    `Mark it: ${unitSingular} ${n}. Put it in the ledger.`,
+    `${n} down. ${name} crosses the invisible line, the universe nods.`,
   ];
   return { trigger: "milestone-km", voice: "play", urgency: 3, text: rand(opts) };
 }
@@ -326,23 +360,23 @@ export function buildRecapLine(
   s: Signal
 ): Line {
   const name = s.athleteName;
-  const km = (s.motion.distanceMeters / 1000).toFixed(2);
+  const dist = spokenDistance(s.motion.distanceMeters, s.units);
   const mins = Math.max(1, Math.round(s.motion.elapsedMs / 60000));
 
   const complete = [
-    `That's the whistle — ${name} hits the target. ${km} kilometres in ${mins} on the clock. That's what they pay the scouts for.`,
-    `Goal delivered. ${name} puts ${km} kilometres in the book. The scoreboard respects it. The crowd respects it. We respect it.`,
+    `That's the whistle — ${name} hits the target. ${dist} in ${mins} on the clock. That's what they pay the scouts for.`,
+    `Goal delivered. ${name} puts ${dist} in the book. The scoreboard respects it. The crowd respects it. We respect it.`,
     `Paid in full. ${name} lands the goal clean. A performance that will age well.`,
   ];
   const failed = [
-    `The clock wins this round. ${name} came up short — ${km} kilometres, ${mins} minutes, no shame. The scouts are already whispering about the rematch.`,
+    `The clock wins this round. ${name} came up short — ${dist}, ${mins} minutes, no shame. The scouts are already whispering about the rematch.`,
     `Not today — but honestly, every professional has this kind of session and lies about it later. ${name}, take the data, reload, come back.`,
-    `Final whistle without the goal. ${km} kilometres banked all the same. This one goes in the "character building" folder.`,
+    `Final whistle without the goal. ${dist} banked all the same. This one goes in the "character building" folder.`,
   ];
   const freeRun = [
-    `And we're off the air. ${name} with ${km} kilometres in ${mins} minutes — no target, just vibes, and the vibes held.`,
-    `Broadcast closes. ${name} earned ${km} kilometres of footage for their trouble. The crowd is standing. Quietly, but standing.`,
-    `That's the sign-off. ${km} kilometres on the book for ${name}. ${mins} minutes the commentator will remember forever.`,
+    `And we're off the air. ${name} with ${dist} in ${mins} minutes — no target, just vibes, and the vibes held.`,
+    `Broadcast closes. ${name} earned ${dist} of footage for their trouble. The crowd is standing. Quietly, but standing.`,
+    `That's the sign-off. ${dist} on the book for ${name}. ${mins} minutes the commentator will remember forever.`,
   ];
 
   const pool = kind === "complete" ? complete : kind === "failed" ? failed : freeRun;

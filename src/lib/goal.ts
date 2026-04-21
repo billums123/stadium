@@ -102,8 +102,21 @@ export function computeProgress(
   };
 }
 
-export function formatGoalDistance(goal: Goal): string {
-  if (goal.unit === "mi") {
+/**
+ * Format a goal's distance for display. Accepts either a GoalUnit
+ * ("km"/"mi") or a global UnitSystem-style override ("metric"/
+ * "imperial") — so call sites can pass `settings.units` directly.
+ * Falls back to the goal's inherent unit when no override is given.
+ */
+export function formatGoalDistance(
+  goal: Goal,
+  override?: GoalUnit | "metric" | "imperial"
+): string {
+  const useImperial =
+    override === "imperial" ||
+    override === "mi" ||
+    (!override && goal.unit === "mi");
+  if (useImperial) {
     const mi = goal.distanceMeters / MILE_METERS;
     return mi === 1 ? "1 mile" : `${trimZeroes(mi)} miles`;
   }
