@@ -108,13 +108,6 @@ function App() {
                 updateSettings({ goal });
               }}
             />
-            <UnitsToggle
-              value={settings.units}
-              onChange={(units) => {
-                haptic("tap");
-                updateSettings({ units });
-              }}
-            />
             <Ticker />
             <div className="hidden sm:block">
               <Pillars />
@@ -235,8 +228,8 @@ function Hero() {
           EVENT.
         </h1>
         <p className="mt-3 max-w-sm text-[14px] leading-snug text-[var(--color-chalk)]/80 sm:text-[15px]">
-          An AI sports broadcast for your walk, run, or ride. You move, a pro-grade AI commentator goes feral.
-          Phone in a pocket, headphones in, GO.
+          A live AI sports broadcast for your walk, run, or ride. Set a goal,
+          start moving, and the commentary reacts to your pace in real time.
         </p>
       </div>
     </section>
@@ -246,16 +239,16 @@ function Hero() {
 function Pillars() {
   const items = [
     {
-      title: "AI PLAY-BY-PLAY",
-      body: "A pro-grade AI commentator reacts to your pace, distance, and anything you shout into your collar mic.",
+      title: "AI COMMENTARY",
+      body: "Two voices — play-by-play and a color commentator — reacting to pace, distance, and goal progress.",
     },
     {
-      title: "STADIUM CROWD",
-      body: "A generative crowd bed keeps the roar under you the whole run — tunnels, hills, finish lines included.",
+      title: "STADIUM BEDS",
+      body: "A generative crowd bed plays under the whole session. Driving music swells as you approach a goal.",
     },
     {
       title: "BROADCAST HUD",
-      body: "A scoreboard built for the camera. Big numbers, bigger hype score, designed for vertical video.",
+      body: "A scoreboard scaled for a phone held at arm's length. Shareable photo-finish export at any moment.",
     },
   ];
   return (
@@ -343,43 +336,6 @@ function ActionButton({
       <div className="font-display text-[11px] uppercase tracking-[0.25em] opacity-75">{sub}</div>
       <div className="font-display text-lg leading-none">{label}</div>
     </button>
-  );
-}
-
-function UnitsToggle({
-  value,
-  onChange,
-}: {
-  value: "metric" | "imperial";
-  onChange: (v: "metric" | "imperial") => void;
-}) {
-  return (
-    <div className="flex items-center justify-between rounded-xl border border-[var(--color-line)] bg-[var(--color-ink-2)]/60 px-3 py-2.5">
-      <div>
-        <div className="font-display text-[10px] uppercase tracking-[0.3em] text-[var(--color-crowd)]">
-          units
-        </div>
-        <div className="font-display text-sm uppercase tracking-wider text-[var(--color-chalk)]/75">
-          {value === "imperial" ? "miles · mph" : "kilometres · km/h"}
-        </div>
-      </div>
-      <div className="flex overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)]">
-        {(["imperial", "metric"] as const).map((u) => (
-          <button
-            key={u}
-            type="button"
-            onClick={() => onChange(u)}
-            className={`min-h-[44px] px-4 font-display text-sm uppercase tracking-[0.2em] transition active:scale-95 ${
-              value === u
-                ? "bg-[var(--color-blaze)]/20 text-[var(--color-chalk)]"
-                : "text-[var(--color-chalk)]/65 hover:text-[var(--color-chalk)]"
-            }`}
-          >
-            {u === "imperial" ? "mi" : "km"}
-          </button>
-        ))}
-      </div>
-    </div>
   );
 }
 

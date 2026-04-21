@@ -36,7 +36,7 @@ export function PermissionPrimer({ onGranted }: Props) {
     state === "requesting" ? "REQUESTING…"
       : state === "done" ? "READY"
       : state === "partial" ? "RETRY"
-      : "START BROADCAST KIT";
+      : "GRANT ACCESS";
 
   return (
     <motion.section

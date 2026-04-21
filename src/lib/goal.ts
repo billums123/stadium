@@ -16,7 +16,12 @@ export type Goal = {
 
 export const MILE_METERS = 1609.34;
 
-export const PRESET_GOALS: Array<{ id: string; label: string; goal: Goal | null }> = [
+/**
+ * Goal presets keyed by the user's unit system. Presented in the UI as
+ * clean rows that all speak the same language — a mi user never sees
+ * a km preset, and vice versa. "Free run" is common to both.
+ */
+const IMPERIAL_PRESETS: Array<{ id: string; label: string; goal: Goal | null }> = [
   { id: "free", label: "Free run", goal: null },
   {
     id: "sprint-quarter-mi-90s",
@@ -29,21 +34,67 @@ export const PRESET_GOALS: Array<{ id: string; label: string; goal: Goal | null 
     goal: { distanceMeters: 0.5 * MILE_METERS, timeMs: 180_000, unit: "mi" },
   },
   {
-    id: "1km-6min",
-    label: "1 km · 6 min",
-    goal: { distanceMeters: 1000, timeMs: 360_000, unit: "km" },
-  },
-  {
     id: "mile-10min",
     label: "1 mi · 10 min",
     goal: { distanceMeters: MILE_METERS, timeMs: 600_000, unit: "mi" },
+  },
+  {
+    id: "3mi-30min",
+    label: "3 mi · 30 min",
+    goal: { distanceMeters: 3 * MILE_METERS, timeMs: 1_800_000, unit: "mi" },
+  },
+  {
+    id: "5mi-45min",
+    label: "5 mi · 45 min",
+    goal: { distanceMeters: 5 * MILE_METERS, timeMs: 2_700_000, unit: "mi" },
+  },
+];
+
+const METRIC_PRESETS: Array<{ id: string; label: string; goal: Goal | null }> = [
+  { id: "free", label: "Free run", goal: null },
+  {
+    id: "250m-90s",
+    label: "250 m · 90 s",
+    goal: { distanceMeters: 250, timeMs: 90_000, unit: "km" },
+  },
+  {
+    id: "500m-3min",
+    label: "500 m · 3 min",
+    goal: { distanceMeters: 500, timeMs: 180_000, unit: "km" },
+  },
+  {
+    id: "1km-6min",
+    label: "1 km · 6 min",
+    goal: { distanceMeters: 1000, timeMs: 360_000, unit: "km" },
   },
   {
     id: "5k-30min",
     label: "5 km · 30 min",
     goal: { distanceMeters: 5000, timeMs: 1_800_000, unit: "km" },
   },
+  {
+    id: "10k-60min",
+    label: "10 km · 60 min",
+    goal: { distanceMeters: 10_000, timeMs: 3_600_000, unit: "km" },
+  },
 ];
+
+/**
+ * Returns the preset list appropriate for the given unit system.
+ * Back-compat: callers that want the legacy mixed list can import
+ * `PRESET_GOALS` directly — it aliases the imperial list.
+ */
+export function presetGoalsFor(units: GoalUnit | "metric" | "imperial"): Array<{
+  id: string;
+  label: string;
+  goal: Goal | null;
+}> {
+  const isImperial = units === "imperial" || units === "mi";
+  return isImperial ? IMPERIAL_PRESETS : METRIC_PRESETS;
+}
+
+/** Legacy alias — same shape as before, defaults to the imperial set. */
+export const PRESET_GOALS = IMPERIAL_PRESETS;
 
 export type GoalStatus = "ahead" | "on-pace" | "behind" | "final-push" | "complete" | "failed";
 

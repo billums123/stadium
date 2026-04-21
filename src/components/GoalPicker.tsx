@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   MILE_METERS,
-  PRESET_GOALS,
+  presetGoalsFor,
   formatGoalDistance,
   formatGoalTime,
   type Goal,
@@ -18,8 +18,9 @@ type Props = {
 };
 
 export function GoalPicker({ goal, onChange, units }: Props) {
+  const presets = presetGoalsFor(units);
   const matchedPresetId = goal
-    ? PRESET_GOALS.find(
+    ? presets.find(
         (p) =>
           p.goal &&
           p.goal.distanceMeters === goal.distanceMeters &&
@@ -43,7 +44,7 @@ export function GoalPicker({ goal, onChange, units }: Props) {
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        {PRESET_GOALS.map((preset) => {
+        {presets.map((preset) => {
           const active = matchedPresetId === preset.id && !customOpen;
           return (
             <motion.button

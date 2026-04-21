@@ -71,9 +71,21 @@ export function SettingsSheet({ open, onClose, settings, update }: Props) {
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 260 }}
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.5 }}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 120 || info.velocity.y > 600) {
+                haptic("tap");
+                onClose();
+              }
+            }}
             className="fixed inset-x-0 bottom-0 z-50 max-h-[92vh] overflow-y-auto rounded-t-3xl border-t border-[var(--color-line)] bg-[var(--color-ink-2)] px-4 pb-[max(env(safe-area-inset-bottom,1rem),1.25rem)] pt-4 sm:px-5"
           >
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[var(--color-line)]" />
+            {/* Drag handle — wider hit target for the swipe-to-dismiss */}
+            <div className="mx-auto mb-4 flex h-3 w-full items-center justify-center">
+              <div className="h-1 w-12 rounded-full bg-[var(--color-line)]" />
+            </div>
             <div className="flex items-baseline justify-between mb-4">
               <h2 className="font-display text-3xl text-[var(--color-chalk)]">BROADCAST</h2>
               <button
@@ -83,6 +95,28 @@ export function SettingsSheet({ open, onClose, settings, update }: Props) {
                 close
               </button>
             </div>
+
+            <Field label="Units">
+              <div className="flex overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)]">
+                {(["imperial", "metric"] as const).map((u) => (
+                  <button
+                    key={u}
+                    type="button"
+                    onClick={() => {
+                      haptic("tap");
+                      update({ units: u });
+                    }}
+                    className={`flex-1 min-h-[44px] px-4 font-display text-sm uppercase tracking-[0.2em] transition active:scale-95 ${
+                      settings.units === u
+                        ? "bg-[var(--color-blaze)]/20 text-[var(--color-chalk)]"
+                        : "text-[var(--color-chalk)]/60 hover:text-[var(--color-chalk)]"
+                    }`}
+                  >
+                    {u === "imperial" ? "mi · mph" : "km · km/h"}
+                  </button>
+                ))}
+              </div>
+            </Field>
 
             <Field label="Play-by-play voice">
               <select
@@ -179,11 +213,11 @@ export function SettingsSheet({ open, onClose, settings, update }: Props) {
                 HOW TO USE
               </div>
               <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-[13px] leading-snug">
-                <li>Pick tonight's goal. Or pick Free Run.</li>
-                <li>Phone in a pocket or chest holder. Earbuds in.</li>
+                <li>Pick a goal, or leave it on Free Run.</li>
+                <li>Phone in a pocket or chest holder.</li>
                 <li>Hit <span className="text-[var(--color-volt)] font-display">GO</span>. Start moving.</li>
-                <li>Hit <span className="text-[var(--color-volt)] font-display">HYPE</span> for on-demand drama.</li>
-                <li>Don't forget to hit record on your other phone.</li>
+                <li>Hit <span className="text-[var(--color-volt)] font-display">HYPE</span> to trigger an on-demand commentary line.</li>
+                <li>If you're filming, start recording on your other camera first.</li>
               </ol>
             </div>
           </motion.div>
