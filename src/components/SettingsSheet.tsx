@@ -13,6 +13,8 @@ type Props = {
 };
 
 const PRESET_VOICES: Voice[] = [
+  // Custom (account-owned) voice for this deploy.
+  { voice_id: "teSzrMn7PRfLv5Q5Fkob", name: "Hype Sports Announcer (custom)" },
   // Shared-library additions tuned for broadcast energy.
   { voice_id: "1GCQiLWWVadqyDYY3CK9", name: "George Daigle — Southern broadcast baritone" },
   { voice_id: "DcLiO3XaUWTu3gyon6hW", name: "Ninja — hype esports commentator" },

@@ -24,11 +24,11 @@ const DEFAULTS: Settings = {
   openaiKey: ENV_OPENAI,
   athleteName: "THE ATHLETE",
   // Two voices picked for contrast: a warm Southern-baritone broadcaster
-  // on play-by-play (George Daigle), and a high-energy sports/gaming
-  // commentator (Ninja) as the hyped color voice. Both come from the
-  // ElevenLabs shared library and work directly via the user's key.
+  // on play-by-play (George Daigle, shared library), and Tanner's
+  // custom-designed "Hype Sports Announcer" as the hyped color voice.
+  // Only works against keys whose account owns the generated voice.
   voiceId: "1GCQiLWWVadqyDYY3CK9",       // George Daigle — Southern broadcast baritone
-  colorVoiceId: "DcLiO3XaUWTu3gyon6hW",  // Ninja — Hype Gaming Commentary
+  colorVoiceId: "teSzrMn7PRfLv5Q5Fkob",  // Hype Sports Announcer (custom generated)
   hypeLevel: 4,
   useDynamic: true,
   llmModel: DEFAULT_LLM_MODEL,
