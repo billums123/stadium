@@ -72,7 +72,7 @@ export function AthleteName({ value, onChange }: Props) {
         )}
       </div>
       {!editing && (
-        <span className="shrink-0 font-display text-[10px] uppercase tracking-[0.25em] text-[var(--color-chalk)]/60">
+        <span className="shrink-0 rounded-md border border-[var(--color-line)] px-2.5 py-1 font-display text-[11px] uppercase tracking-[0.25em] text-[var(--color-chalk)]/75">
           tap to rename
         </span>
       )}

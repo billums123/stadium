@@ -162,7 +162,7 @@ function TopBar({
         </div>
         <div className="font-display text-xl tracking-[0.2em] text-[var(--color-chalk)]">STADIUM</div>
         <div
-          className={`ml-2 rounded-full border px-2 py-0.5 text-[9px] uppercase tracking-[0.25em] ${
+          className={`ml-2 rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.25em] ${
             phase === "live"
               ? "border-[var(--color-blaze)] text-[var(--color-blaze)]"
               : "border-[var(--color-line)] text-[var(--color-crowd)]"
@@ -174,7 +174,7 @@ function TopBar({
       <button
         onClick={onOpenSettings}
         aria-label="Open settings"
-        className="min-h-[40px] min-w-[40px] rounded-md border border-[var(--color-line)] px-3 font-display text-xs uppercase tracking-[0.2em] text-[var(--color-chalk)]/80 active:scale-95 hover:border-[var(--color-chalk)]"
+        className="min-h-[44px] rounded-lg border border-[var(--color-line)] px-3.5 font-display text-sm uppercase tracking-[0.2em] text-[var(--color-chalk)]/85 active:scale-95 hover:border-[var(--color-chalk)]"
       >
         settings
       </button>
@@ -290,20 +290,20 @@ function BottomBar({
         {isLive ? (
           <ActionButton label="WALK" sub="sim" onClick={() => onSimulate(5)} />
         ) : (
-          <div className="w-[78px] sm:w-[84px]" />
+          <div className="w-[82px] sm:w-[92px]" />
         )}
         <BroadcastButton phase={phase} onStart={onStart} onStop={onStop} />
         {isLive ? (
           <ActionButton label="HYPE" sub="line" accent onClick={onForceLine} />
         ) : (
-          <div className="w-[78px] sm:w-[84px]" />
+          <div className="w-[82px] sm:w-[92px]" />
         )}
       </div>
       {isLive && (
         <div className="mx-auto mt-1.5 flex w-full max-w-xl justify-center">
           <button
             onClick={() => onSimulate(11)}
-            className="min-h-[36px] rounded-md border border-[var(--color-line)] bg-[var(--color-ink-2)]/70 px-3 py-1 font-display text-[11px] uppercase tracking-[0.25em] text-[var(--color-chalk)]/70 active:scale-95 hover:border-[var(--color-chalk)]/60"
+            className="min-h-[40px] rounded-lg border border-[var(--color-line)] bg-[var(--color-ink-2)]/70 px-3.5 py-1.5 font-display text-[12px] uppercase tracking-[0.25em] text-[var(--color-chalk)]/80 active:scale-95 hover:border-[var(--color-chalk)]/60"
           >
             sim · run pace
           </button>
@@ -327,14 +327,14 @@ function ActionButton({
   return (
     <button
       onClick={onClick}
-      className={`flex min-h-[56px] w-[78px] flex-col items-center justify-center rounded-lg border px-2 py-2 transition active:scale-95 sm:w-[84px] ${
+      className={`flex min-h-[64px] w-[82px] flex-col items-center justify-center rounded-lg border px-2 py-2 transition active:scale-95 sm:w-[92px] ${
         accent
           ? "border-[var(--color-volt)]/60 bg-[var(--color-volt)]/10 text-[var(--color-volt)] hover:border-[var(--color-volt)]"
           : "border-[var(--color-line)] bg-[var(--color-ink-2)]/80 text-[var(--color-chalk)] hover:border-[var(--color-chalk)]/60"
       }`}
     >
-      <div className="font-display text-[10px] uppercase tracking-[0.25em] opacity-70">{sub}</div>
-      <div className="font-display text-base leading-none">{label}</div>
+      <div className="font-display text-[11px] uppercase tracking-[0.25em] opacity-75">{sub}</div>
+      <div className="font-display text-lg leading-none">{label}</div>
     </button>
   );
 }

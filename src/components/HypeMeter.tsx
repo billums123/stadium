@@ -6,7 +6,7 @@ export function HypeMeter({ value }: { value: number }) {
     pct > 75 ? "var(--color-blaze)" : pct > 45 ? "var(--color-volt)" : "var(--color-chalk)";
   return (
     <div className="px-4 pb-2">
-      <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.25em] text-[var(--color-crowd)]">
+      <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.25em] text-[var(--color-crowd)]">
         <span>hype meter</span>
         <span>{pct}/100</span>
       </div>

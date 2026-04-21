@@ -42,11 +42,11 @@ export function Scoreboard({ status, athleteName }: Props) {
 
   return (
     <div className="relative overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-ink-2)]/95 shadow-[0_0_0_1px_rgba(255,255,255,0.04)] scanline">
-      <div className="flex items-center justify-between px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-[var(--color-crowd)]">
+      <div className="flex items-center justify-between px-3 py-2 text-[11px] uppercase tracking-[0.2em] text-[var(--color-crowd)]">
         <span className="flex items-center gap-2">
-          <span className="relative flex h-2 w-2">
+          <span className="relative flex h-2.5 w-2.5">
             <span className="absolute inline-flex h-full w-full rounded-full bg-[var(--color-blaze)] opacity-75 pulse-ring"></span>
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--color-blaze)]"></span>
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--color-blaze)]"></span>
           </span>
           LIVE · CH. 01
         </span>
@@ -55,7 +55,7 @@ export function Scoreboard({ status, athleteName }: Props) {
           onClick={onShare}
           disabled={sharing}
           aria-label="Export photo-finish share card"
-          className="min-h-[36px] rounded-md border border-[var(--color-line)] px-2.5 font-display text-[10px] uppercase tracking-[0.22em] text-[var(--color-chalk)]/80 transition active:scale-95 hover:border-[var(--color-chalk)]/60 disabled:opacity-50"
+          className="min-h-[40px] rounded-lg border border-[var(--color-line)] px-3 font-display text-[12px] uppercase tracking-[0.22em] text-[var(--color-chalk)]/85 transition active:scale-95 hover:border-[var(--color-chalk)]/60 disabled:opacity-50"
         >
           {sharing ? "rendering…" : "◉ SHARE"}
         </button>

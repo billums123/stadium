@@ -53,10 +53,10 @@ export function GoalPicker({ goal, onChange }: Props) {
                 setCustomOpen(false);
                 onChange(preset.goal);
               }}
-              className={`min-h-[44px] rounded-md border px-3 py-2 font-display text-[12px] uppercase tracking-[0.2em] transition-colors ${
+              className={`min-h-[48px] rounded-lg border px-3.5 py-2.5 font-display text-sm uppercase tracking-[0.18em] transition-colors ${
                 active
                   ? "border-[var(--color-blaze)] bg-[var(--color-blaze)]/15 text-[var(--color-chalk)]"
-                  : "border-[var(--color-line)] bg-[var(--color-ink)]/60 text-[var(--color-chalk)]/80 hover:border-[var(--color-chalk)]/50"
+                  : "border-[var(--color-line)] bg-[var(--color-ink)]/60 text-[var(--color-chalk)]/85 hover:border-[var(--color-chalk)]/50"
               }`}
             >
               {preset.label}
@@ -67,10 +67,10 @@ export function GoalPicker({ goal, onChange }: Props) {
           type="button"
           whileTap={{ scale: 0.93 }}
           onClick={() => setCustomOpen((v) => !v)}
-          className={`min-h-[44px] rounded-md border px-3 py-2 font-display text-[12px] uppercase tracking-[0.2em] transition-colors ${
+          className={`min-h-[48px] rounded-lg border px-3.5 py-2.5 font-display text-sm uppercase tracking-[0.18em] transition-colors ${
             customOpen || matchedPresetId === "custom"
               ? "border-[var(--color-volt)] bg-[var(--color-volt)]/15 text-[var(--color-chalk)]"
-              : "border-[var(--color-line)] bg-[var(--color-ink)]/60 text-[var(--color-chalk)]/80 hover:border-[var(--color-chalk)]/50"
+              : "border-[var(--color-line)] bg-[var(--color-ink)]/60 text-[var(--color-chalk)]/85 hover:border-[var(--color-chalk)]/50"
           }`}
           aria-expanded={customOpen}
         >
