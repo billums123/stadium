@@ -13,10 +13,13 @@ type Props = {
 };
 
 const PRESET_VOICES: Voice[] = [
-  // Shared-library additions tuned for sports/esports broadcast energy.
+  // Shared-library additions tuned for broadcast energy.
+  { voice_id: "1GCQiLWWVadqyDYY3CK9", name: "George Daigle — Southern broadcast baritone" },
   { voice_id: "DcLiO3XaUWTu3gyon6hW", name: "Ninja — hype esports commentator" },
+  { voice_id: "FlH8mWLKvKQDtLz1ANa9", name: "Jeet — expert sports commentator" },
+  { voice_id: "xuiKYsOhCzCAyIdb1aX3", name: "Clint Brooks — clear southern baritone" },
   // Stock ElevenLabs voices available on every plan.
-  { voice_id: "JBFqnCBsd6RMkjVDRZzb", name: "George — broadcast baritone" },
+  { voice_id: "JBFqnCBsd6RMkjVDRZzb", name: "George — broadcast baritone (stock)" },
   { voice_id: "cgSgspJ2msm6clMCkdW9", name: "Jessica — energetic host" },
   { voice_id: "iP95p4xoKVk53GoZ742B", name: "Chris — hype MC" },
   { voice_id: "nPczCjzI2devNBz1zQrb", name: "Brian — deep narrator" },

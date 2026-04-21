@@ -23,10 +23,11 @@ const DEFAULTS: Settings = {
   elevenKey: ENV_ELEVEN,
   openaiKey: ENV_OPENAI,
   athleteName: "THE ATHLETE",
-  // Two voices picked for contrast: a steady broadcast baritone on
-  // play-by-play, and a high-energy sports/gaming commentator (Ninja
-  // from the ElevenLabs shared library) as the hyped color voice.
-  voiceId: "JBFqnCBsd6RMkjVDRZzb",       // George — broadcast baritone
+  // Two voices picked for contrast: a warm Southern-baritone broadcaster
+  // on play-by-play (George Daigle), and a high-energy sports/gaming
+  // commentator (Ninja) as the hyped color voice. Both come from the
+  // ElevenLabs shared library and work directly via the user's key.
+  voiceId: "1GCQiLWWVadqyDYY3CK9",       // George Daigle — Southern broadcast baritone
   colorVoiceId: "DcLiO3XaUWTu3gyon6hW",  // Ninja — Hype Gaming Commentary
   hypeLevel: 4,
   useDynamic: true,
