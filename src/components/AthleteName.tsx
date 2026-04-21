@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { haptic } from "../lib/haptics";
+import { possessiveSlot } from "../lib/timeOfDay";
 
 type Props = {
   value: string;
@@ -44,7 +45,7 @@ export function AthleteName({ value, onChange }: Props) {
     >
       <div className="min-w-0 flex-1">
         <div className="font-display text-[10px] uppercase tracking-[0.3em] text-[var(--color-volt)]">
-          tonight's athlete
+          {possessiveSlot()} athlete
         </div>
         {editing ? (
           <input

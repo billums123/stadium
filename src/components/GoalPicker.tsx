@@ -8,6 +8,7 @@ import {
   type Goal,
   type GoalUnit,
 } from "../lib/goal";
+import { possessiveSlot } from "../lib/timeOfDay";
 
 type Props = {
   goal: Goal | null;
@@ -30,7 +31,7 @@ export function GoalPicker({ goal, onChange }: Props) {
     <section className="rounded-2xl border border-[var(--color-line)] bg-[var(--color-ink-2)]/70 p-4 scanline">
       <div className="mb-2 flex items-center justify-between">
         <div className="font-display text-xs uppercase tracking-[0.3em] text-[var(--color-volt)]">
-          tonight's goal
+          {possessiveSlot()} goal
         </div>
         {goal && (
           <div className="font-display text-[11px] uppercase tracking-[0.25em] text-[var(--color-chalk)]/70">
