@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createMotionTracker, type MotionState } from "../lib/motion";
 import { startSpeechListener } from "../lib/speech";
-import { decide, INITIAL_ENGINE, type Line, type Voice } from "../lib/commentary";
+import type { Line, Voice } from "../lib/commentary";
 import { synthesizeSpeech, blobToObjectUrl } from "../lib/elevenlabs";
 import { loadCrowdBed, loadMusicBed, fadeTo } from "../lib/ambient";
 import { acquireWakeLock, type WakeLockHandle } from "../lib/wakelock";
 import { loadCareer, recordSession, saveCareer, type Career } from "../lib/career";
+import { plan, INITIAL_DIRECTOR, type DirectorState, type DirectorPlan } from "../lib/director";
+import { generateLine, warmUp as warmUpLLM } from "../lib/llm";
+import { computeProgress, type GoalProgress } from "../lib/goal";
 import type { Settings } from "../lib/store";
 
 export type BroadcastPhase = "idle" | "warming" | "live" | "stopping";
@@ -18,9 +21,11 @@ export type BroadcastStatus = {
   transcript: string;
   interim: string;
   speaking: boolean;
-  hypeScore: number; // 0-100, for the scoreboard HUD
+  hypeScore: number; // 0-100 intensity derived from director/pace/goal
   error: string | null;
   career: Career;
+  goalProgress: GoalProgress | null;
+  dynamicActive: boolean; // true when the last line came from the LLM, false = template fallback
 };
 
 const EMPTY_MOTION: MotionState = {
@@ -47,13 +52,16 @@ export function useBroadcast(settings: Settings) {
     hypeScore: 0,
     error: null,
     career: loadCareer(),
+    goalProgress: null,
+    dynamicActive: false,
   }));
 
-  const engineRef = useRef({ ...INITIAL_ENGINE });
+  const directorRef = useRef<DirectorState>({ ...INITIAL_DIRECTOR });
   const sessionStartRef = useRef(0);
   const peakKmhRef = useRef(0);
   const careerRef = useRef<Career>(status.career);
   const lastLineRef = useRef<Line | null>(null);
+  const lastIntensityRef = useRef(0);
   const trackerRef = useRef<ReturnType<typeof createMotionTracker> | null>(null);
   const speechRef = useRef<ReturnType<typeof startSpeechListener> | null>(null);
   const lastTranscriptAtRef = useRef<number>(-999999);
@@ -70,78 +78,127 @@ export function useBroadcast(settings: Settings) {
     setStatus((s) => ({ ...s, ...patch }));
   }, []);
 
-  const voiceForLine = useCallback(
+  const voiceIdFor = useCallback(
     (v: Voice) => (v === "color" && settings.colorVoiceId ? settings.colorVoiceId : settings.voiceId),
     [settings.voiceId, settings.colorVoiceId]
   );
 
-  const speakLine = useCallback(
-    async (line: Line) => {
+  /**
+   * Turn a director plan into audible commentary.
+   * - Dynamic mode: asks the LLM for a fresh line, falls back to the
+   *   plan's template if the call returns null.
+   * - Delivery: ElevenLabs voice settings + audio playback rate both
+   *   scale with the plan's intensity.
+   */
+  const speakPlan = useCallback(
+    async (p: DirectorPlan) => {
       if (speakingRef.current) return;
       speakingRef.current = true;
+      lastIntensityRef.current = p.intensity;
+
+      let text = p.fallbackLine.text;
+      let usedDynamic = false;
+
+      if (settings.useDynamic && settings.openaiKey && p.prompts) {
+        const generated = await generateLine({
+          apiKey: settings.openaiKey,
+          system: p.prompts.system,
+          user: p.prompts.user,
+          model: settings.llmModel,
+          maxTokens: 180,
+          timeoutMs: 4000,
+        });
+        if (generated) {
+          text = generated;
+          usedDynamic = true;
+        }
+      }
+
+      const line: Line = {
+        trigger: p.fallbackLine.trigger,
+        voice: p.voice,
+        urgency: p.urgency,
+        text,
+      };
       lastLineRef.current = line;
       setStatus((s) => ({
         ...s,
         lastLine: line,
         speaking: true,
         history: [line, ...s.history].slice(0, 6),
+        hypeScore: p.intensity,
+        dynamicActive: usedDynamic,
       }));
 
+      // Strip any audio tags out of the display text? We keep them — v3
+      // TTS treats them as directions rather than reading them aloud, and
+      // on turbo_v2_5 they're just parenthetical styling that reads fine.
       try {
         if (settings.elevenKey) {
           try {
+            const hype = p.intensity / 100;
             const blob = await synthesizeSpeech({
               apiKey: settings.elevenKey,
-              voiceId: voiceForLine(line.voice),
-              text: line.text,
-              // Color voice leans drier/stabler; play-by-play leans expressive.
+              voiceId: voiceIdFor(p.voice),
+              text,
+              // Style pushes expressiveness. Color voice stays drier.
               style:
-                line.voice === "color"
-                  ? 0.3
-                  : Math.min(0.95, 0.55 + (settings.hypeLevel - 3) * 0.1),
+                p.voice === "color"
+                  ? Math.min(0.55, 0.25 + hype * 0.2)
+                  : Math.min(0.98, 0.45 + hype * 0.55),
+              // Stability goes DOWN as hype goes UP (more dramatic variance).
               stability:
-                line.voice === "color"
-                  ? 0.55
-                  : Math.max(0.15, 0.45 - (settings.hypeLevel - 3) * 0.05),
+                p.voice === "color"
+                  ? Math.max(0.35, 0.6 - hype * 0.2)
+                  : Math.max(0.12, 0.55 - hype * 0.4),
+              similarity: 0.85,
             });
             const url = blobToObjectUrl(blob);
-            await playUrl(url, speechAudioRef);
+            await playUrlAtRate(url, speechAudioRef, rateForIntensity(p.intensity, p.voice));
             URL.revokeObjectURL(url);
             setPartial({ error: null });
           } catch (err) {
-            // Keep the broadcast alive; surface the failure for the user.
             setPartial({ error: (err as Error).message });
-            if ("speechSynthesis" in window) await browserSpeak(line.text);
+            if ("speechSynthesis" in window) await browserSpeak(text, p.intensity);
           }
         } else if ("speechSynthesis" in window) {
-          await browserSpeak(line.text);
+          await browserSpeak(text, p.intensity);
         }
       } finally {
         speakingRef.current = false;
         setPartial({ speaking: false });
       }
     },
-    [settings.elevenKey, settings.hypeLevel, setPartial, voiceForLine]
+    [
+      settings.elevenKey,
+      settings.openaiKey,
+      settings.useDynamic,
+      settings.llmModel,
+      setPartial,
+      voiceIdFor,
+    ]
   );
 
   const start = useCallback(async () => {
     setPartial({ phase: "warming", error: null });
-    engineRef.current = { ...INITIAL_ENGINE };
+    directorRef.current = { ...INITIAL_DIRECTOR };
     lastLineRef.current = null;
     peakKmhRef.current = 0;
     sessionStartRef.current = performance.now();
 
-    // R1 — hold the screen awake for the whole session.
     wakeLockRef.current = await acquireWakeLock();
+
+    // Prime the LLM connection in the background so the first real
+    // commentary line doesn't pay the cold-start latency.
+    if (settings.useDynamic && settings.openaiKey) {
+      warmUpLLM(settings.openaiKey, settings.llmModel);
+    }
 
     try {
       crowdAudioRef.current = await loadCrowdBed(settings.elevenKey || null);
-      crowdAudioRef.current.play().catch(() => { /* decoding / autoplay */ });
-    } catch (e) {
-      void e;
-    }
+      crowdAudioRef.current.play().catch(() => { /* autoplay blocked */ });
+    } catch (e) { void e; }
 
-    // R10/R11 — optional music bed, cross-fades in when ready.
     if (settings.elevenKey) {
       void (async () => {
         const music = await loadMusicBed(settings.elevenKey);
@@ -150,16 +207,25 @@ export function useBroadcast(settings: Settings) {
         try {
           await music.play();
           fadeTo(music, 0.18, 2500);
-        } catch {
-          /* autoplay blocked */
-        }
+        } catch { /* autoplay blocked */ }
       })();
     }
 
     const tracker = createMotionTracker((m) => {
       motionRef.current = m;
       if (m.paceKmh > peakKmhRef.current) peakKmhRef.current = m.paceKmh;
-      setPartial({ motion: m });
+      const progress = settings.goal
+        ? computeProgress(settings.goal, m.elapsedMs, m.distanceMeters)
+        : null;
+      setPartial({ motion: m, goalProgress: progress });
+
+      // Duck crowd bed up on urgency-3 moments (wire in speak path).
+      if (crowdAudioRef.current) {
+        const target = lastIntensityRef.current > 70 ? 0.34 : 0.22;
+        if (Math.abs(crowdAudioRef.current.volume - target) > 0.04) {
+          fadeTo(crowdAudioRef.current, target, 600);
+        }
+      }
     });
     trackerRef.current = tracker;
     await tracker.start();
@@ -178,40 +244,36 @@ export function useBroadcast(settings: Settings) {
     tickRef.current = window.setInterval(() => {
       const elapsed = performance.now() - sessionStartRef.current;
       const lastTranscriptAgeMs = performance.now() - lastTranscriptAtRef.current;
-      const result = decide(
-        engineRef.current,
+      const result = plan(
+        directorRef.current,
         {
           athleteName: settings.athleteName || "THE ATHLETE",
           motion: motionRef.current,
           lastTranscript: transcriptRef.current || null,
           lastTranscriptAgeMs,
           elapsedInSessionMs: elapsed,
-          hypeLevel: settings.hypeLevel,
+          hypeFloor: settings.hypeLevel,
           career: careerRef.current,
+          goal: settings.goal,
         },
         lastLineRef.current
       );
 
-      const hypeScore = Math.min(
-        100,
-        Math.round(
-          motionRef.current.paceKmh * 4 +
-            motionRef.current.movementIntensity * 30 +
-            Math.min(40, elapsed / 60000 * 8)
-        )
-      );
-
       if (result) {
-        engineRef.current = result.next;
-        setPartial({ hypeScore });
-        void speakLine(result.line);
-      } else {
-        setPartial({ hypeScore });
+        directorRef.current = result.next;
+        void speakPlan(result);
       }
-    }, 1500);
+    }, 1200);
 
     setPartial({ phase: "live" });
-  }, [settings.athleteName, settings.elevenKey, settings.hypeLevel, setPartial, speakLine]);
+  }, [
+    settings.athleteName,
+    settings.elevenKey,
+    settings.hypeLevel,
+    settings.goal,
+    setPartial,
+    speakPlan,
+  ]);
 
   const stop = useCallback(async () => {
     setPartial({ phase: "stopping" });
@@ -239,7 +301,6 @@ export function useBroadcast(settings: Settings) {
       wakeLockRef.current = null;
     }
 
-    // Persist the session into career stats (only if we covered ground).
     const sessionKm = motionRef.current.distanceMeters / 1000;
     if (sessionKm > 0.02 || peakKmhRef.current > 2) {
       const next = recordSession(careerRef.current, sessionKm, peakKmhRef.current);
@@ -248,7 +309,7 @@ export function useBroadcast(settings: Settings) {
       saveCareer(next);
     }
 
-    setPartial({ phase: "idle", interim: "" });
+    setPartial({ phase: "idle", interim: "", goalProgress: null });
   }, [setPartial]);
 
   const simulate = useCallback((kmh: number) => {
@@ -258,25 +319,26 @@ export function useBroadcast(settings: Settings) {
   const forceLine = useCallback(() => {
     if (speakingRef.current) return;
     const elapsed = performance.now() - sessionStartRef.current;
-    const fakeEngine = { ...engineRef.current, lastTriggerAt: -999999, cooldownMs: 0 };
-    const result = decide(
-      fakeEngine,
+    const state = { ...directorRef.current, lastTriggerAt: -999_999 };
+    const result = plan(
+      state,
       {
         athleteName: settings.athleteName || "THE ATHLETE",
         motion: motionRef.current,
         lastTranscript: transcriptRef.current || null,
         lastTranscriptAgeMs: performance.now() - lastTranscriptAtRef.current,
         elapsedInSessionMs: elapsed,
-        hypeLevel: settings.hypeLevel,
+        hypeFloor: settings.hypeLevel,
         career: careerRef.current,
+        goal: settings.goal,
       },
       lastLineRef.current
     );
     if (result) {
-      engineRef.current = { ...result.next, cooldownMs: engineRef.current.cooldownMs };
-      void speakLine(result.line);
+      directorRef.current = result.next;
+      void speakPlan(result);
     }
-  }, [settings.athleteName, settings.hypeLevel, speakLine]);
+  }, [settings.athleteName, settings.hypeLevel, settings.goal, speakPlan]);
 
   useEffect(() => () => {
     if (tickRef.current != null) clearInterval(tickRef.current);
@@ -287,12 +349,29 @@ export function useBroadcast(settings: Settings) {
     void wakeLockRef.current?.release();
   }, []);
 
-  return { status, start, stop, simulate, speakLine, forceLine };
+  return { status, start, stop, simulate, forceLine };
 }
 
-function playUrl(url: string, audioRef: React.RefObject<HTMLAudioElement | null>): Promise<void> {
+/**
+ * Map 0..100 intensity into a speech playback rate.
+ * Play-by-play goes harder — up to 1.3x at peak.
+ * Color voice tops out at 1.12x so it stays measured even when hot.
+ */
+function rateForIntensity(intensity: number, voice: Voice): number {
+  const n = Math.max(0, Math.min(100, intensity)) / 100;
+  if (voice === "color") return 0.97 + n * 0.15;
+  return 0.98 + n * 0.32;
+}
+
+function playUrlAtRate(
+  url: string,
+  audioRef: React.RefObject<HTMLAudioElement | null>,
+  rate: number
+): Promise<void> {
   return new Promise((resolve) => {
     const audio = new Audio(url);
+    audio.playbackRate = rate;
+    audio.preservesPitch = false;
     audioRef.current = audio;
     audio.onended = () => resolve();
     audio.onerror = () => resolve();
@@ -300,11 +379,11 @@ function playUrl(url: string, audioRef: React.RefObject<HTMLAudioElement | null>
   });
 }
 
-function browserSpeak(text: string): Promise<void> {
+function browserSpeak(text: string, intensity: number): Promise<void> {
   return new Promise((resolve) => {
     try {
       const utter = new SpeechSynthesisUtterance(text);
-      utter.rate = 1.05;
+      utter.rate = 0.95 + (Math.max(0, Math.min(100, intensity)) / 100) * 0.4;
       utter.pitch = 0.95;
       utter.onend = () => resolve();
       utter.onerror = () => resolve();

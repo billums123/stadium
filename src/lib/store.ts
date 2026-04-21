@@ -1,26 +1,36 @@
 import { useEffect, useState } from "react";
+import { DEFAULT_MODEL as DEFAULT_LLM_MODEL } from "./llm";
+import type { Goal } from "./goal";
 
 export type Settings = {
   elevenKey: string;
+  openaiKey: string;
   athleteName: string;
   voiceId: string;       // play-by-play commentator
   colorVoiceId: string;  // color commentator (the dry second voice)
-  hypeLevel: number;     // 1-5
-  useConvai: boolean;
+  hypeLevel: number;     // 1-5, a floor — live intensity can climb past it
+  useDynamic: boolean;   // LLM-generated lines when a key is present
+  llmModel: string;
+  goal: Goal | null;     // null = free run
 };
 
-const ENV_KEY =
+const ENV_ELEVEN =
   (import.meta.env?.VITE_ELEVENLABS_API_KEY as string | undefined)?.trim() || "";
+const ENV_OPENAI =
+  (import.meta.env?.VITE_OPENAI_API_KEY as string | undefined)?.trim() || "";
 
 const DEFAULTS: Settings = {
-  elevenKey: ENV_KEY,
+  elevenKey: ENV_ELEVEN,
+  openaiKey: ENV_OPENAI,
   athleteName: "THE ATHLETE",
   // Stock voices present on every ElevenLabs plan. Picked intentionally
   // different — a brighter-energy play-by-play and a drier color voice.
   voiceId: "JBFqnCBsd6RMkjVDRZzb",       // George — broadcast baritone
   colorVoiceId: "nPczCjzI2devNBz1zQrb",  // Brian — deep narrator
   hypeLevel: 4,
-  useConvai: false,
+  useDynamic: true,
+  llmModel: DEFAULT_LLM_MODEL,
+  goal: null,
 };
 
 const KEY = "stadium:settings:v1";
@@ -30,9 +40,10 @@ export function loadSettings(): Settings {
     const raw = localStorage.getItem(KEY);
     if (!raw) return DEFAULTS;
     const parsed = JSON.parse(raw) as Partial<Settings>;
-    // Env key takes precedence when the user hasn't explicitly set one in the UI
-    const elevenKey = parsed.elevenKey?.trim() || ENV_KEY;
-    return { ...DEFAULTS, ...parsed, elevenKey };
+    // Env keys win when the user hasn't explicitly set one in the UI.
+    const elevenKey = parsed.elevenKey?.trim() || ENV_ELEVEN;
+    const openaiKey = parsed.openaiKey?.trim() || ENV_OPENAI;
+    return { ...DEFAULTS, ...parsed, elevenKey, openaiKey };
   } catch {
     return DEFAULTS;
   }
