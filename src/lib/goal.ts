@@ -21,61 +21,44 @@ export const MILE_METERS = 1609.34;
  * clean rows that all speak the same language — a mi user never sees
  * a km preset, and vice versa. "Free run" is common to both.
  */
+// Four presets per unit system — tilted toward short sprint-like
+// efforts so the default UX is quick, high-intensity sessions that
+// film well. Custom… below handles everything longer.
 const IMPERIAL_PRESETS: Array<{ id: string; label: string; goal: Goal | null }> = [
   { id: "free", label: "Free run", goal: null },
   {
-    id: "sprint-quarter-mi-90s",
-    label: "¼ mi · 90 s",
-    goal: { distanceMeters: 0.25 * MILE_METERS, timeMs: 90_000, unit: "mi" },
+    id: "eighth-mi-40s",
+    label: "⅛ mi · 40 s",
+    goal: { distanceMeters: 0.125 * MILE_METERS, timeMs: 40_000, unit: "mi" },
   },
   {
-    id: "half-mi-3min",
-    label: "½ mi · 3 min",
-    goal: { distanceMeters: 0.5 * MILE_METERS, timeMs: 180_000, unit: "mi" },
+    id: "quarter-mi-90s",
+    label: "¼ mi · 90 s",
+    goal: { distanceMeters: 0.25 * MILE_METERS, timeMs: 90_000, unit: "mi" },
   },
   {
     id: "mile-10min",
     label: "1 mi · 10 min",
     goal: { distanceMeters: MILE_METERS, timeMs: 600_000, unit: "mi" },
   },
-  {
-    id: "3mi-30min",
-    label: "3 mi · 30 min",
-    goal: { distanceMeters: 3 * MILE_METERS, timeMs: 1_800_000, unit: "mi" },
-  },
-  {
-    id: "5mi-45min",
-    label: "5 mi · 45 min",
-    goal: { distanceMeters: 5 * MILE_METERS, timeMs: 2_700_000, unit: "mi" },
-  },
 ];
 
 const METRIC_PRESETS: Array<{ id: string; label: string; goal: Goal | null }> = [
   { id: "free", label: "Free run", goal: null },
   {
-    id: "250m-90s",
-    label: "250 m · 90 s",
-    goal: { distanceMeters: 250, timeMs: 90_000, unit: "km" },
+    id: "200m-40s",
+    label: "200 m · 40 s",
+    goal: { distanceMeters: 200, timeMs: 40_000, unit: "km" },
   },
   {
-    id: "500m-3min",
-    label: "500 m · 3 min",
-    goal: { distanceMeters: 500, timeMs: 180_000, unit: "km" },
+    id: "400m-90s",
+    label: "400 m · 90 s",
+    goal: { distanceMeters: 400, timeMs: 90_000, unit: "km" },
   },
   {
     id: "1km-6min",
     label: "1 km · 6 min",
     goal: { distanceMeters: 1000, timeMs: 360_000, unit: "km" },
-  },
-  {
-    id: "5k-30min",
-    label: "5 km · 30 min",
-    goal: { distanceMeters: 5000, timeMs: 1_800_000, unit: "km" },
-  },
-  {
-    id: "10k-60min",
-    label: "10 km · 60 min",
-    goal: { distanceMeters: 10_000, timeMs: 3_600_000, unit: "km" },
   },
 ];
 
