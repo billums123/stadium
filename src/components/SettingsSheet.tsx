@@ -140,7 +140,7 @@ export function SettingsSheet({ open, onClose, settings, update }: Props) {
               </div>
             </Field>
 
-            <label className="mb-4 flex min-h-[60px] items-center justify-between rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2.5">
+            <label className="mb-3 flex min-h-[60px] items-center justify-between rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2.5">
               <div>
                 <div className="font-display text-xs uppercase tracking-[0.25em] text-[var(--color-chalk)]">
                   dynamic lines
@@ -157,6 +157,26 @@ export function SettingsSheet({ open, onClose, settings, update }: Props) {
                   update({ useDynamic: e.target.checked });
                 }}
                 className="h-5 w-5 accent-[var(--color-blaze)]"
+              />
+            </label>
+
+            <label className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2.5">
+              <div>
+                <div className="font-display text-xs uppercase tracking-[0.25em] text-[var(--color-chalk)]">
+                  mic quotes · earbuds only
+                </div>
+                <div className="mt-0.5 text-[11px] leading-snug text-[var(--color-crowd)]">
+                  Lets the commentator quote what you say out loud. Opening the mic on a phone engages echo cancellation on every playback — so your commentary will sound robotic unless you wear earbuds. Off by default.
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={settings.useMic}
+                onChange={(e) => {
+                  haptic("tap");
+                  update({ useMic: e.target.checked });
+                }}
+                className="mt-1 h-5 w-5 shrink-0 accent-[var(--color-blaze)]"
               />
             </label>
 

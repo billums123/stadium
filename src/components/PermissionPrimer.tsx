@@ -9,9 +9,12 @@ import {
 
 type Props = {
   onGranted: () => void;
+  /** Whether to include the microphone in the request. Default false
+   *  because opening the mic degrades the output audio quality. */
+  includeMic?: boolean;
 };
 
-export function PermissionPrimer({ onGranted }: Props) {
+export function PermissionPrimer({ onGranted, includeMic = false }: Props) {
   const [state, setState] = useState<"idle" | "requesting" | "done" | "partial">("idle");
   const [report, setReport] = useState<PrimerReport | null>(null);
 
@@ -19,10 +22,10 @@ export function PermissionPrimer({ onGranted }: Props) {
     if (state === "requesting") return;
     haptic("press");
     setState("requesting");
-    const r = await requestAllPermissions();
+    const r = await requestAllPermissions({ mic: includeMic });
     setReport(r);
     markPrimerDone(r);
-    if (r.microphone === "granted") {
+    if (r.ready) {
       setState("done");
       haptic("success");
       setTimeout(onGranted, 350);
@@ -48,12 +51,12 @@ export function PermissionPrimer({ onGranted }: Props) {
         one-time setup
       </div>
       <div className="font-display text-[clamp(1.2rem,5vw,1.5rem)] leading-tight text-[var(--color-chalk)]">
-        Allow the broadcast to hear you and track your pace.
+        Allow the broadcast to track your pace and distance.
       </div>
       <ul className="mt-2 space-y-1 text-[13px] leading-snug text-[var(--color-chalk)]/75">
-        <li>🎙 Microphone — so the commentator can quote you live</li>
         <li>🏃 Motion — so pace surges trigger reactions</li>
         <li>📍 Location — so distance tracks accurately</li>
+        {includeMic && <li>🎙 Microphone — so the commentator can quote you live</li>}
       </ul>
 
       <motion.button
@@ -90,10 +93,12 @@ export function PermissionPrimer({ onGranted }: Props) {
         </div>
       )}
 
-      <div className="mt-3 rounded-md border border-[var(--color-line)] bg-[var(--color-ink)]/70 p-2.5 text-[12px] leading-snug text-[var(--color-chalk)]/70">
-        <strong className="text-[var(--color-chalk)]">Tip:</strong> use headphones when you can.
-        The phone's own speaker will feed its voice back into the mic otherwise.
-      </div>
+      {includeMic && (
+        <div className="mt-3 rounded-md border border-[var(--color-line)] bg-[var(--color-ink)]/70 p-2.5 text-[12px] leading-snug text-[var(--color-chalk)]/70">
+          <strong className="text-[var(--color-chalk)]">Headphones strongly recommended.</strong>{" "}
+          With the mic on, most phones engage echo cancellation on all playback — which makes the commentary sound robotic unless you use earbuds.
+        </div>
+      )}
     </motion.section>
   );
 }

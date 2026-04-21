@@ -21,10 +21,12 @@ type DeviceMotionStatic = {
 };
 
 /**
- * Request all broadcast permissions. Safe to call repeatedly; already-
- * granted permissions resolve immediately.
+ * Request broadcast permissions. Safe to call repeatedly; already-
+ * granted permissions resolve immediately. Mic is off by default
+ * because opening it engages Acoustic Echo Cancellation on all
+ * output, which degrades the TTS playback quality on phone speakers.
  */
-export async function requestAllPermissions(): Promise<PrimerReport> {
+export async function requestAllPermissions(options: { mic?: boolean } = {}): Promise<PrimerReport> {
   const report: PrimerReport = {
     microphone: "unsupported",
     motion: "unsupported",
@@ -32,9 +34,8 @@ export async function requestAllPermissions(): Promise<PrimerReport> {
     ready: false,
   };
 
-  // --- Microphone (getUserMedia with echo cancellation + noise
-  // suppression hints to reduce phone-speaker feedback into the mic).
-  if ("mediaDevices" in navigator && navigator.mediaDevices.getUserMedia) {
+  // --- Microphone: skip entirely unless the caller asks for it.
+  if (options.mic && "mediaDevices" in navigator && navigator.mediaDevices.getUserMedia) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -43,8 +44,6 @@ export async function requestAllPermissions(): Promise<PrimerReport> {
           autoGainControl: true,
         },
       });
-      // Stop the tracks — Web Speech API starts its own capture. We
-      // just wanted the permission prompt resolved here.
       stream.getTracks().forEach((t) => t.stop());
       report.microphone = "granted";
     } catch (e) {
@@ -83,7 +82,12 @@ export async function requestAllPermissions(): Promise<PrimerReport> {
     report.motion = "granted";
   }
 
-  report.ready = report.microphone === "granted";
+  // "Ready" means we have what we actually need: motion+geo if
+  // available, plus mic when the caller requested it.
+  const motionOk = report.motion === "granted" || report.motion === "unsupported";
+  const geoOk = report.geolocation === "granted" || report.geolocation === "unsupported";
+  const micOk = !options.mic || report.microphone === "granted";
+  report.ready = motionOk && geoOk && micOk;
   return report;
 }
 
@@ -107,7 +111,11 @@ export function wasPrimerDone(): boolean {
     const raw = localStorage.getItem(DONE_KEY);
     if (!raw) return false;
     const data = JSON.parse(raw) as Partial<PrimerReport>;
-    return data.microphone === "granted";
+    // Consider the primer done as long as motion / location were
+    // addressed. Mic is optional and handled separately.
+    const motionOk = data.motion === "granted" || data.motion === "unsupported";
+    const geoOk = data.geolocation === "granted" || data.geolocation === "unsupported";
+    return Boolean(motionOk && geoOk);
   } catch {
     return false;
   }

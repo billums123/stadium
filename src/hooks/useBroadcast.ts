@@ -255,28 +255,29 @@ export function useBroadcast(settings: Settings) {
     trackerRef.current = tracker;
     await tracker.start();
 
-    const speech = startSpeechListener((text, isFinal) => {
-      // Drop anything the mic captures while the phone speaker is
-      // firing TTS — otherwise the announcer's own voice bounces back
-      // as a "quote", which the LLM re-speaks, and the whole thing
-      // feedback-loops into robotic soup. The guard kills it at
-      // source.
-      if (speakingRef.current) return;
-      // Also ignore transcripts fresh off the tail of a just-finished
-      // line — there can be ~400ms where audio is still decaying in
-      // the room but speakingRef has flipped false.
-      const tailWindow = 700;
-      if (performance.now() - lastSpeechEndRef.current < tailWindow) return;
+    // Speech recognition is opt-in. When the browser opens the mic,
+    // the OS engages Acoustic Echo Cancellation on ALL playback —
+    // which chews the TTS output into compressed, spotty audio even
+    // when the mic never fires a useful transcript. Opening the mic
+    // is only worth it if the user is wearing earbuds.
+    if (settings.useMic) {
+      const speech = startSpeechListener((text, isFinal) => {
+        // Drop anything the mic captures while the phone speaker is
+        // firing TTS — otherwise the announcer bounces back as a quote.
+        if (speakingRef.current) return;
+        const tailWindow = 700;
+        if (performance.now() - lastSpeechEndRef.current < tailWindow) return;
 
-      if (isFinal) {
-        transcriptRef.current = text;
-        lastTranscriptAtRef.current = performance.now();
-        setPartial({ transcript: text, interim: "" });
-      } else {
-        setPartial({ interim: text });
-      }
-    });
-    speechRef.current = speech;
+        if (isFinal) {
+          transcriptRef.current = text;
+          lastTranscriptAtRef.current = performance.now();
+          setPartial({ transcript: text, interim: "" });
+        } else {
+          setPartial({ interim: text });
+        }
+      });
+      speechRef.current = speech;
+    }
 
     tickRef.current = window.setInterval(() => {
       const elapsed = performance.now() - sessionStartRef.current;

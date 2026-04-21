@@ -83,7 +83,12 @@ function App() {
             className="flex flex-col gap-4"
           >
             <Hero />
-            {!primerDone && <PermissionPrimer onGranted={() => setPrimerDone(true)} />}
+            {!primerDone && (
+              <PermissionPrimer
+                includeMic={settings.useMic}
+                onGranted={() => setPrimerDone(true)}
+              />
+            )}
             <AthleteName
               value={settings.athleteName}
               onChange={(athleteName) => updateSettings({ athleteName })}
