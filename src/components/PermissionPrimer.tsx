@@ -9,12 +9,9 @@ import {
 
 type Props = {
   onGranted: () => void;
-  /** Whether to include the microphone in the request. Default false
-   *  because opening the mic degrades the output audio quality. */
-  includeMic?: boolean;
 };
 
-export function PermissionPrimer({ onGranted, includeMic = false }: Props) {
+export function PermissionPrimer({ onGranted }: Props) {
   const [state, setState] = useState<"idle" | "requesting" | "done" | "partial">("idle");
   const [report, setReport] = useState<PrimerReport | null>(null);
 
@@ -22,7 +19,7 @@ export function PermissionPrimer({ onGranted, includeMic = false }: Props) {
     if (state === "requesting") return;
     haptic("press");
     setState("requesting");
-    const r = await requestAllPermissions({ mic: includeMic });
+    const r = await requestAllPermissions();
     setReport(r);
     markPrimerDone(r);
     if (r.ready) {
@@ -56,7 +53,6 @@ export function PermissionPrimer({ onGranted, includeMic = false }: Props) {
       <ul className="mt-2 space-y-1 text-[13px] leading-snug text-[var(--color-chalk)]/75">
         <li>🏃 Motion — so pace surges trigger reactions</li>
         <li>📍 Location — so distance tracks accurately</li>
-        {includeMic && <li>🎙 Microphone — so the commentator can quote you live</li>}
       </ul>
 
       <motion.button
@@ -81,22 +77,14 @@ export function PermissionPrimer({ onGranted, includeMic = false }: Props) {
             couldn't get everything
           </div>
           <ul className="space-y-0.5">
-            <li>Mic: {report.microphone}</li>
             <li>Motion: {report.motion}</li>
             <li>Location: {report.geolocation}</li>
           </ul>
           <div className="mt-2">
-            Mic access is required for the mic-quote feature. Open your
-            phone's site settings for this page and allow it, then retry.
-            You can still broadcast without motion / location.
+            Open your phone's site settings for this page and allow
+            motion / location, then retry. You can still tap GO without
+            them — pace and distance will just be less accurate.
           </div>
-        </div>
-      )}
-
-      {includeMic && (
-        <div className="mt-3 rounded-md border border-[var(--color-line)] bg-[var(--color-ink)]/70 p-2.5 text-[12px] leading-snug text-[var(--color-chalk)]/70">
-          <strong className="text-[var(--color-chalk)]">Headphones strongly recommended.</strong>{" "}
-          With the mic on, most phones engage echo cancellation on all playback — which makes the commentary sound robotic unless you use earbuds.
         </div>
       )}
     </motion.section>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useSettings } from "./lib/store";
 import { useBroadcast } from "./hooks/useBroadcast";
@@ -57,12 +57,6 @@ function App() {
     if (status.lastLine.urgency === 3) haptic("ambient");
   }, [status.lastLine]);
 
-  const micDot = useMemo(() => {
-    if (status.interim) return "listening";
-    if (status.transcript) return "heard";
-    return "idle";
-  }, [status.interim, status.transcript]);
-
   return (
     <div className="relative min-h-dvh bg-[var(--color-ink)] stadium-grain">
       <TopBar
@@ -83,12 +77,7 @@ function App() {
             className="flex flex-col gap-4"
           >
             <Hero />
-            {!primerDone && (
-              <PermissionPrimer
-                includeMic={settings.useMic}
-                onGranted={() => setPrimerDone(true)}
-              />
-            )}
+            {!primerDone && <PermissionPrimer onGranted={() => setPrimerDone(true)} />}
             <AthleteName
               value={settings.athleteName}
               onChange={(athleteName) => updateSettings({ athleteName })}
@@ -116,7 +105,6 @@ function App() {
             <Scoreboard status={status} athleteName={settings.athleteName} />
             {status.goalProgress && <GoalHud progress={status.goalProgress} />}
             <CaptionStream line={status.lastLine} speaking={status.speaking} />
-            <MicCard interim={status.interim} transcript={status.transcript} dot={micDot} />
             <SessionLog history={status.history} />
             {status.error && (
               <div className="rounded-lg border border-[var(--color-blaze)]/60 bg-[var(--color-blaze)]/10 px-3 py-2 text-sm text-[var(--color-chalk)]">
@@ -250,34 +238,6 @@ function Pillars() {
         </div>
       ))}
     </section>
-  );
-}
-
-function MicCard({
-  interim,
-  transcript,
-  dot,
-}: {
-  interim: string;
-  transcript: string;
-  dot: "idle" | "listening" | "heard";
-}) {
-  const dotColor =
-    dot === "listening"
-      ? "bg-[var(--color-volt)] animate-pulse"
-      : dot === "heard"
-      ? "bg-[var(--color-blaze)]"
-      : "bg-[var(--color-line)]";
-  return (
-    <div className="rounded-xl border border-[var(--color-line)] bg-[var(--color-ink-2)]/80 px-4 py-3">
-      <div className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-[0.25em] text-[var(--color-crowd)]">
-        <span className={`inline-block h-2 w-2 rounded-full ${dotColor}`} />
-        your mic · {dot}
-      </div>
-      <div className="font-mono text-sm text-[var(--color-chalk)]/90 min-h-[1.5rem] break-words">
-        {interim || transcript || <span className="text-[var(--color-crowd)]">Say anything — the broadcast hears you.</span>}
-      </div>
-    </div>
   );
 }
 

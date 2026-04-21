@@ -1,5 +1,5 @@
 /**
- * Permissions primer. Requests every browser permission the broadcast
+ * Permissions primer. Requests the browser permissions the broadcast
  * needs on first interaction, so the cold-open sequence doesn't get
  * interrupted by a prompt mid-countdown.
  *
@@ -9,10 +9,9 @@
 export type PermState = "prompt" | "granted" | "denied" | "unsupported";
 
 export type PrimerReport = {
-  microphone: PermState;
   motion: PermState;
   geolocation: PermState;
-  /** true when everything we need is granted */
+  /** true when everything we need is granted (motion + geo) */
   ready: boolean;
 };
 
@@ -21,35 +20,15 @@ type DeviceMotionStatic = {
 };
 
 /**
- * Request broadcast permissions. Safe to call repeatedly; already-
- * granted permissions resolve immediately. Mic is off by default
- * because opening it engages Acoustic Echo Cancellation on all
- * output, which degrades the TTS playback quality on phone speakers.
+ * Request motion + geolocation permissions. Safe to call repeatedly;
+ * already-granted permissions resolve immediately.
  */
-export async function requestAllPermissions(options: { mic?: boolean } = {}): Promise<PrimerReport> {
+export async function requestAllPermissions(): Promise<PrimerReport> {
   const report: PrimerReport = {
-    microphone: "unsupported",
     motion: "unsupported",
     geolocation: "unsupported",
     ready: false,
   };
-
-  // --- Microphone: skip entirely unless the caller asks for it.
-  if (options.mic && "mediaDevices" in navigator && navigator.mediaDevices.getUserMedia) {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-      stream.getTracks().forEach((t) => t.stop());
-      report.microphone = "granted";
-    } catch (e) {
-      report.microphone = nameToState(e);
-    }
-  }
 
   // --- Geolocation (used for real pace, optional).
   if ("geolocation" in navigator) {
@@ -82,20 +61,10 @@ export async function requestAllPermissions(options: { mic?: boolean } = {}): Pr
     report.motion = "granted";
   }
 
-  // "Ready" means we have what we actually need: motion+geo if
-  // available, plus mic when the caller requested it.
   const motionOk = report.motion === "granted" || report.motion === "unsupported";
   const geoOk = report.geolocation === "granted" || report.geolocation === "unsupported";
-  const micOk = !options.mic || report.microphone === "granted";
-  report.ready = motionOk && geoOk && micOk;
+  report.ready = motionOk && geoOk;
   return report;
-}
-
-function nameToState(err: unknown): PermState {
-  const name = (err as { name?: string } | undefined)?.name;
-  if (name === "NotAllowedError" || name === "PermissionDeniedError") return "denied";
-  if (name === "NotFoundError") return "unsupported";
-  return "prompt";
 }
 
 const DONE_KEY = "stadium:perms:granted:v1";
@@ -111,8 +80,6 @@ export function wasPrimerDone(): boolean {
     const raw = localStorage.getItem(DONE_KEY);
     if (!raw) return false;
     const data = JSON.parse(raw) as Partial<PrimerReport>;
-    // Consider the primer done as long as motion / location were
-    // addressed. Mic is optional and handled separately.
     const motionOk = data.motion === "granted" || data.motion === "unsupported";
     const geoOk = data.geolocation === "granted" || data.geolocation === "unsupported";
     return Boolean(motionOk && geoOk);

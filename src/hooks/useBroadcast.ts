@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createMotionTracker, type MotionState } from "../lib/motion";
-import { startSpeechListener } from "../lib/speech";
 import type { Line, Voice } from "../lib/commentary";
 import { synthesizeSpeech } from "../lib/elevenlabs";
 import { loadCrowdBed, loadMusicBed, fadeTo } from "../lib/ambient";
@@ -20,8 +19,6 @@ export type BroadcastStatus = {
   motion: MotionState;
   lastLine: Line | null;
   history: Line[];
-  transcript: string;
-  interim: string;
   speaking: boolean;
   hypeScore: number; // 0-100 intensity derived from director/pace/goal
   error: string | null;
@@ -50,8 +47,6 @@ export function useBroadcast(settings: Settings) {
     motion: EMPTY_MOTION,
     lastLine: null,
     history: [],
-    transcript: "",
-    interim: "",
     speaking: false,
     hypeScore: 0,
     error: null,
@@ -68,9 +63,6 @@ export function useBroadcast(settings: Settings) {
   const lastLineRef = useRef<Line | null>(null);
   const lastIntensityRef = useRef(0);
   const trackerRef = useRef<ReturnType<typeof createMotionTracker> | null>(null);
-  const speechRef = useRef<ReturnType<typeof startSpeechListener> | null>(null);
-  const lastTranscriptAtRef = useRef<number>(-999999);
-  const lastSpeechEndRef = useRef<number>(-999999);
   const crowdAudioRef = useRef<HTMLAudioElement | null>(null);
   const musicAudioRef = useRef<HTMLAudioElement | null>(null);
   const speechAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -78,7 +70,6 @@ export function useBroadcast(settings: Settings) {
   const tickRef = useRef<number | null>(null);
   const speakingRef = useRef(false);
   const motionRef = useRef<MotionState>(EMPTY_MOTION);
-  const transcriptRef = useRef<string>("");
 
   const setPartial = useCallback((patch: Partial<BroadcastStatus>) => {
     setStatus((s) => ({ ...s, ...patch }));
@@ -168,7 +159,6 @@ export function useBroadcast(settings: Settings) {
         }
       } finally {
         speakingRef.current = false;
-        lastSpeechEndRef.current = performance.now();
         setPartial({ speaking: false });
         duckBeds(crowdAudioRef.current, musicAudioRef.current, false);
       }
@@ -255,40 +245,16 @@ export function useBroadcast(settings: Settings) {
     trackerRef.current = tracker;
     await tracker.start();
 
-    // Speech recognition is opt-in. When the browser opens the mic,
-    // the OS engages Acoustic Echo Cancellation on ALL playback —
-    // which chews the TTS output into compressed, spotty audio even
-    // when the mic never fires a useful transcript. Opening the mic
-    // is only worth it if the user is wearing earbuds.
-    if (settings.useMic) {
-      const speech = startSpeechListener((text, isFinal) => {
-        // Drop anything the mic captures while the phone speaker is
-        // firing TTS — otherwise the announcer bounces back as a quote.
-        if (speakingRef.current) return;
-        const tailWindow = 700;
-        if (performance.now() - lastSpeechEndRef.current < tailWindow) return;
-
-        if (isFinal) {
-          transcriptRef.current = text;
-          lastTranscriptAtRef.current = performance.now();
-          setPartial({ transcript: text, interim: "" });
-        } else {
-          setPartial({ interim: text });
-        }
-      });
-      speechRef.current = speech;
-    }
 
     tickRef.current = window.setInterval(() => {
       const elapsed = performance.now() - sessionStartRef.current;
-      const lastTranscriptAgeMs = performance.now() - lastTranscriptAtRef.current;
       const result = plan(
         directorRef.current,
         {
           athleteName: settings.athleteName || "THE ATHLETE",
           motion: motionRef.current,
-          lastTranscript: transcriptRef.current || null,
-          lastTranscriptAgeMs,
+          lastTranscript: null,
+          lastTranscriptAgeMs: Number.POSITIVE_INFINITY,
           elapsedInSessionMs: elapsed,
           hypeFloor: settings.hypeLevel,
           career: careerRef.current,
@@ -317,7 +283,6 @@ export function useBroadcast(settings: Settings) {
       tickRef.current = null;
     }
     trackerRef.current?.stop();
-    speechRef.current?.stop();
     if (crowdAudioRef.current) {
       crowdAudioRef.current.pause();
       crowdAudioRef.current = null;
@@ -344,7 +309,7 @@ export function useBroadcast(settings: Settings) {
       saveCareer(next);
     }
 
-    setPartial({ phase: "idle", interim: "", goalProgress: null });
+    setPartial({ phase: "idle", goalProgress: null });
   }, [setPartial]);
 
   const simulate = useCallback((kmh: number) => {
@@ -360,8 +325,8 @@ export function useBroadcast(settings: Settings) {
       {
         athleteName: settings.athleteName || "THE ATHLETE",
         motion: motionRef.current,
-        lastTranscript: transcriptRef.current || null,
-        lastTranscriptAgeMs: performance.now() - lastTranscriptAtRef.current,
+        lastTranscript: null,
+        lastTranscriptAgeMs: Number.POSITIVE_INFINITY,
         elapsedInSessionMs: elapsed,
         hypeFloor: settings.hypeLevel,
         career: careerRef.current,
@@ -378,7 +343,6 @@ export function useBroadcast(settings: Settings) {
   useEffect(() => () => {
     if (tickRef.current != null) clearInterval(tickRef.current);
     trackerRef.current?.stop();
-    speechRef.current?.stop();
     crowdAudioRef.current?.pause();
     musicAudioRef.current?.pause();
     void wakeLockRef.current?.release();

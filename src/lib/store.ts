@@ -8,7 +8,6 @@ export type Settings = {
   colorVoiceId: string;  // color commentator
   hypeLevel: number;     // 1-5, a floor — live intensity climbs past it
   useDynamic: boolean;   // LLM-generated lines on top of the template engine
-  useMic: boolean;       // enable Web Speech API mic-quote line
   llmModel: string;
   goal: Goal | null;     // null = free run
 };
@@ -22,11 +21,6 @@ const DEFAULTS: Settings = {
   colorVoiceId: "teSzrMn7PRfLv5Q5Fkob",  // Hype Sports Announcer (custom generated)
   hypeLevel: 4,
   useDynamic: true,
-  // Mic off by default. When enabled the browser opens the microphone,
-  // which on most phones engages Acoustic Echo Cancellation on all
-  // playback — making the TTS output sound compressed / robotic. Only
-  // worth turning on with earbuds in.
-  useMic: false,
   llmModel: DEFAULT_LLM_MODEL,
   goal: null,
 };

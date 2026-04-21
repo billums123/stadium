@@ -160,26 +160,6 @@ export function SettingsSheet({ open, onClose, settings, update }: Props) {
               />
             </label>
 
-            <label className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 py-2.5">
-              <div>
-                <div className="font-display text-xs uppercase tracking-[0.25em] text-[var(--color-chalk)]">
-                  mic quotes · earbuds only
-                </div>
-                <div className="mt-0.5 text-[11px] leading-snug text-[var(--color-crowd)]">
-                  Lets the commentator quote what you say out loud. Opening the mic on a phone engages echo cancellation on every playback — so your commentary will sound robotic unless you wear earbuds. Off by default.
-                </div>
-              </div>
-              <input
-                type="checkbox"
-                checked={settings.useMic}
-                onChange={(e) => {
-                  haptic("tap");
-                  update({ useMic: e.target.checked });
-                }}
-                className="mt-1 h-5 w-5 shrink-0 accent-[var(--color-blaze)]"
-              />
-            </label>
-
             <Field label="LLM model">
               <select
                 value={settings.llmModel}
@@ -202,7 +182,6 @@ export function SettingsSheet({ open, onClose, settings, update }: Props) {
                 <li>Pick tonight's goal. Or pick Free Run.</li>
                 <li>Phone in a pocket or chest holder. Earbuds in.</li>
                 <li>Hit <span className="text-[var(--color-volt)] font-display">GO</span>. Start moving.</li>
-                <li>Shout things into your collar mic — the broadcast reacts.</li>
                 <li>Hit <span className="text-[var(--color-volt)] font-display">HYPE</span> for on-demand drama.</li>
                 <li>Don't forget to hit record on your other phone.</li>
               </ol>
