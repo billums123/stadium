@@ -70,6 +70,7 @@ export function useBroadcast(settings: Settings) {
   const trackerRef = useRef<ReturnType<typeof createMotionTracker> | null>(null);
   const speechRef = useRef<ReturnType<typeof startSpeechListener> | null>(null);
   const lastTranscriptAtRef = useRef<number>(-999999);
+  const lastSpeechEndRef = useRef<number>(-999999);
   const crowdAudioRef = useRef<HTMLAudioElement | null>(null);
   const musicAudioRef = useRef<HTMLAudioElement | null>(null);
   const speechAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -136,6 +137,10 @@ export function useBroadcast(settings: Settings) {
 
       // Keep [audio-tag] cues in the display text but strip them before
       // TTS: v3 would understand them, turbo_v2_5 reads them literally.
+      // Duck the ambient beds hard during speech so the commentary sits
+      // cleanly on top and — more importantly — so the phone's own
+      // speaker doesn't feed back through the mic.
+      duckBeds(crowdAudioRef.current, musicAudioRef.current, true);
       try {
         try {
           const hype = p.intensity / 100;
@@ -163,7 +168,9 @@ export function useBroadcast(settings: Settings) {
         }
       } finally {
         speakingRef.current = false;
+        lastSpeechEndRef.current = performance.now();
         setPartial({ speaking: false });
+        duckBeds(crowdAudioRef.current, musicAudioRef.current, false);
       }
     },
     [
@@ -236,8 +243,10 @@ export function useBroadcast(settings: Settings) {
         : null;
       setPartial({ motion: m, goalProgress: progress });
 
-      if (crowdAudioRef.current) {
-        const target = lastIntensityRef.current > 70 ? 0.34 : 0.22;
+      // Gentle duck of the crowd bed by intensity; actual hard-duck
+      // during TTS is handled by duckBeds() in speakPlan.
+      if (crowdAudioRef.current && !speakingRef.current) {
+        const target = lastIntensityRef.current > 70 ? 0.32 : 0.22;
         if (Math.abs(crowdAudioRef.current.volume - target) > 0.04) {
           fadeTo(crowdAudioRef.current, target, 600);
         }
@@ -247,6 +256,18 @@ export function useBroadcast(settings: Settings) {
     await tracker.start();
 
     const speech = startSpeechListener((text, isFinal) => {
+      // Drop anything the mic captures while the phone speaker is
+      // firing TTS — otherwise the announcer's own voice bounces back
+      // as a "quote", which the LLM re-speaks, and the whole thing
+      // feedback-loops into robotic soup. The guard kills it at
+      // source.
+      if (speakingRef.current) return;
+      // Also ignore transcripts fresh off the tail of a just-finished
+      // line — there can be ~400ms where audio is still decaying in
+      // the room but speakingRef has flipped false.
+      const tailWindow = 700;
+      if (performance.now() - lastSpeechEndRef.current < tailWindow) return;
+
       if (isFinal) {
         transcriptRef.current = text;
         lastTranscriptAtRef.current = performance.now();
@@ -370,11 +391,20 @@ export function useBroadcast(settings: Settings) {
  * Play-by-play goes harder — up to 1.3x at peak.
  * Color voice tops out at 1.12x so it stays measured even when hot.
  */
+/**
+ * Intensity → playback rate. Cap narrower than before (up to 1.22x)
+ * because at 1.3x even pitch-preserving time-stretch can sound smeared.
+ */
 function rateForIntensity(intensity: number, voice: Voice): number {
   const n = Math.max(0, Math.min(100, intensity)) / 100;
-  if (voice === "color") return 0.97 + n * 0.15;
-  return 0.98 + n * 0.32;
+  if (voice === "color") return 0.98 + n * 0.12;
+  return 0.99 + n * 0.22;
 }
+
+type WithPitchFlags = HTMLAudioElement & {
+  mozPreservesPitch?: boolean;
+  webkitPreservesPitch?: boolean;
+};
 
 function playUrlAtRate(
   url: string,
@@ -382,14 +412,33 @@ function playUrlAtRate(
   rate: number
 ): Promise<void> {
   return new Promise((resolve) => {
-    const audio = new Audio(url);
+    const audio = new Audio(url) as WithPitchFlags;
+    // Preserve pitch while speeding up — otherwise the voice goes
+    // chipmunky at any playbackRate > 1, which the user reads as
+    // "robotic". All three property names cover older Safari/Firefox.
+    audio.preservesPitch = true;
+    audio.mozPreservesPitch = true;
+    audio.webkitPreservesPitch = true;
     audio.playbackRate = rate;
-    audio.preservesPitch = false;
     audioRef.current = audio;
     audio.onended = () => resolve();
     audio.onerror = () => resolve();
     audio.play().catch(() => resolve());
   });
+}
+
+/**
+ * Crossfade the crowd / music beds down (during TTS) or back up
+ * (after). Keeping them quieter during speech means the phone's own
+ * speaker doesn't push enough volume to feed back through the mic.
+ */
+function duckBeds(
+  crowd: HTMLAudioElement | null,
+  music: HTMLAudioElement | null,
+  ducked: boolean
+) {
+  if (crowd) fadeTo(crowd, ducked ? 0.08 : 0.22, 180);
+  if (music) fadeTo(music, ducked ? 0.05 : 0.18, 180);
 }
 
 function browserSpeak(text: string, intensity: number): Promise<void> {
@@ -435,12 +484,12 @@ async function speakWelcome(
     hour < 22 ? "primetime" :
                 "the late-night edition";
 
-  const fallback = `Good evening, good morning, good afternoon — welcome to STADIUM. You are tuned in to ${slot}. Tonight's main event: ${athleteName}. We are underway in three.`;
+  const fallback = `Good evening, good morning, good afternoon — welcome to STADIUM. You are tuned in to ${slot}. Tonight's main event: ${athleteName}. Stand by.`;
 
   let text = fallback;
   if (settings.useDynamic) {
     const generated = await generateLine({
-      system: `You are the voice of STADIUM — a live AI sports broadcast. Write ONE cold-open welcome line, exactly the kind of line a professional sports broadcaster reads at the top of the show. TWO to THREE short sentences. Under 40 words total. Warm, confident, slightly theatrical. British-inflected. Must greet the audience, identify STADIUM by name, reference the time-of-day slot, name the athlete, and end with "in three." or similar to cue an imminent countdown. No audio tags. No hedging.`,
+      system: `You are the voice of STADIUM — a live AI sports broadcast. Write ONE cold-open welcome line, exactly the kind of line a professional sports broadcaster reads at the top of the show. TWO to THREE short sentences. Under 40 words total. Warm, confident, slightly theatrical. British-inflected. Must greet the audience, identify STADIUM by name, reference the time-of-day slot, and name the athlete. DO NOT count down, DO NOT mention numbers, DO NOT say "in three" / "in ten" / anything implying a countdown — a visual countdown handles that on its own immediately after you speak. End on a short anticipatory beat like "Stand by." or "Here we go." No audio tags. No hedging.`,
       user: `Athlete: ${athleteName}\nTime-of-day slot: ${slot}\nCareer: ${careerTag}\n\nWrite the cold-open welcome line now.`,
       model: settings.llmModel,
       maxTokens: 120,

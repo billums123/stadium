@@ -15,11 +15,14 @@ import { GoalHud } from "./components/GoalHud";
 import { AthleteName } from "./components/AthleteName";
 import { Confetti } from "./components/Confetti";
 import { CountdownOverlay } from "./components/CountdownOverlay";
+import { PermissionPrimer } from "./components/PermissionPrimer";
+import { wasPrimerDone } from "./lib/permissions";
 
 function App() {
   const [settings, updateSettings] = useSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [screen, setScreen] = useState<"landing" | "live">("landing");
+  const [primerDone, setPrimerDone] = useState<boolean>(() => wasPrimerDone());
 
   const broadcast = useBroadcast(settings);
   const { status } = broadcast;
@@ -80,6 +83,7 @@ function App() {
             className="flex flex-col gap-4"
           >
             <Hero />
+            {!primerDone && <PermissionPrimer onGranted={() => setPrimerDone(true)} />}
             <AthleteName
               value={settings.athleteName}
               onChange={(athleteName) => updateSettings({ athleteName })}
