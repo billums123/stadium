@@ -8,6 +8,7 @@ import { acquireWakeLock, type WakeLockHandle } from "../lib/wakelock";
 import { loadCareer, recordSession, saveCareer, type Career } from "../lib/career";
 import { plan, INITIAL_DIRECTOR, type DirectorState, type DirectorPlan } from "../lib/director";
 import { generateLine, warmUp as warmUpLLM } from "../lib/llm";
+import { stripAudioTags } from "../lib/tags";
 import { computeProgress, type GoalProgress } from "../lib/goal";
 import type { Settings } from "../lib/store";
 
@@ -137,10 +138,13 @@ export function useBroadcast(settings: Settings) {
         if (settings.elevenKey) {
           try {
             const hype = p.intensity / 100;
+            // Strip [tag] cues before TTS — v3 understands them, but our
+            // default turbo_v2_5 reads them literally as "bracket, dry".
+            const spokenText = stripAudioTags(text);
             const blob = await synthesizeSpeech({
               apiKey: settings.elevenKey,
               voiceId: voiceIdFor(p.voice),
-              text,
+              text: spokenText,
               // Style pushes expressiveness. Color voice stays drier.
               style:
                 p.voice === "color"
@@ -162,7 +166,7 @@ export function useBroadcast(settings: Settings) {
             if ("speechSynthesis" in window) await browserSpeak(text, p.intensity);
           }
         } else if ("speechSynthesis" in window) {
-          await browserSpeak(text, p.intensity);
+          await browserSpeak(stripAudioTags(text), p.intensity);
         }
       } finally {
         speakingRef.current = false;

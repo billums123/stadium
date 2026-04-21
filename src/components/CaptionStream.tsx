@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import type { Line } from "../lib/commentary";
+import { stripAudioTags } from "../lib/tags";
 
 export function CaptionStream({ line, speaking }: { line: Line | null; speaking: boolean }) {
   const urgencyAccent = line
@@ -35,7 +36,7 @@ export function CaptionStream({ line, speaking }: { line: Line | null; speaking:
           className={`relative rounded-xl border-2 ${urgencyAccent} bg-[var(--color-ink-2)]/80 px-3 py-3 backdrop-blur sm:px-4 sm:py-4`}
         >
           <div className="font-display text-[clamp(1.15rem,5vw,2.1rem)] leading-[1.1] text-balance">
-            {line ? line.text : "Awaiting broadcast. Press the button."}
+            {line ? stripAudioTags(line.text) : "Awaiting broadcast. Press the button."}
           </div>
           {speaking && (
             <motion.div

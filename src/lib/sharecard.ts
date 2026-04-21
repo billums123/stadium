@@ -6,6 +6,7 @@
 
 import type { Line } from "./commentary";
 import type { MotionState } from "./motion";
+import { stripAudioTags } from "./tags";
 
 export type ShareCardInput = {
   athleteName: string;
@@ -128,7 +129,7 @@ export async function renderShareCard(input: ShareCardInput): Promise<Blob> {
   ctx.fillStyle = "#f5f2e8";
   ctx.font = "900 76px 'Arial Black', Impact, sans-serif";
   ctx.textAlign = "left";
-  const text = input.line?.text ?? "Every step. The main event.";
+  const text = input.line ? stripAudioTags(input.line.text) : "Every step. The main event.";
   wrapText(ctx, text, 120, cardY + 180, W - 240, 92);
 
   // Footer tag.

@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import type { Line } from "../lib/commentary";
+import { stripAudioTags } from "../lib/tags";
 
 export function SessionLog({ history }: { history: Line[] }) {
   if (history.length === 0) return null;
@@ -33,7 +34,7 @@ export function SessionLog({ history }: { history: Line[] }) {
                 </span>
               </div>
               <div className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-[var(--color-chalk)]/80">
-                {line.text}
+                {stripAudioTags(line.text)}
               </div>
             </motion.div>
           ))}
