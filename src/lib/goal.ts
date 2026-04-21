@@ -21,44 +21,47 @@ export const MILE_METERS = 1609.34;
  * clean rows that all speak the same language — a mi user never sees
  * a km preset, and vice versa. "Free run" is common to both.
  */
-// Four presets per unit system — tilted toward short sprint-like
-// efforts so the default UX is quick, high-intensity sessions that
-// film well. Custom… below handles everything longer.
+const YARD_METERS = 0.9144;
+
+// Four presets per unit system, structured as dash → sprint → push
+// distance. Sprint labels use yards / metres because that's how a dash
+// is normally framed — "100 yd" parses as a football field, where
+// "⅛ mi" parses as maths. Custom… handles anything longer than a mile.
 const IMPERIAL_PRESETS: Array<{ id: string; label: string; goal: Goal | null }> = [
   { id: "free", label: "Free run", goal: null },
   {
-    id: "eighth-mi-40s",
-    label: "⅛ mi · 40 s",
-    goal: { distanceMeters: 0.125 * MILE_METERS, timeMs: 40_000, unit: "mi" },
+    id: "40yd-8s",
+    label: "40 yd · 8 s",
+    goal: { distanceMeters: 40 * YARD_METERS, timeMs: 8_000, unit: "mi" },
+  },
+  {
+    id: "100yd-20s",
+    label: "100 yd · 20 s",
+    goal: { distanceMeters: 100 * YARD_METERS, timeMs: 20_000, unit: "mi" },
   },
   {
     id: "quarter-mi-90s",
     label: "¼ mi · 90 s",
     goal: { distanceMeters: 0.25 * MILE_METERS, timeMs: 90_000, unit: "mi" },
   },
-  {
-    id: "mile-10min",
-    label: "1 mi · 10 min",
-    goal: { distanceMeters: MILE_METERS, timeMs: 600_000, unit: "mi" },
-  },
 ];
 
 const METRIC_PRESETS: Array<{ id: string; label: string; goal: Goal | null }> = [
   { id: "free", label: "Free run", goal: null },
   {
-    id: "200m-40s",
-    label: "200 m · 40 s",
-    goal: { distanceMeters: 200, timeMs: 40_000, unit: "km" },
+    id: "40m-8s",
+    label: "40 m · 8 s",
+    goal: { distanceMeters: 40, timeMs: 8_000, unit: "km" },
+  },
+  {
+    id: "100m-20s",
+    label: "100 m · 20 s",
+    goal: { distanceMeters: 100, timeMs: 20_000, unit: "km" },
   },
   {
     id: "400m-90s",
     label: "400 m · 90 s",
     goal: { distanceMeters: 400, timeMs: 90_000, unit: "km" },
-  },
-  {
-    id: "1km-6min",
-    label: "1 km · 6 min",
-    goal: { distanceMeters: 1000, timeMs: 360_000, unit: "km" },
   },
 ];
 
@@ -141,6 +144,10 @@ export function computeProgress(
  * ("km"/"mi") or a global UnitSystem-style override ("metric"/
  * "imperial") — so call sites can pass `settings.units` directly.
  * Falls back to the goal's inherent unit when no override is given.
+ *
+ * Short-distance handling: imperial goals under 0.1 mi render in
+ * yards ("100 yd") instead of a useless "0.06 miles". Metric already
+ * flips to meters under 1 km.
  */
 export function formatGoalDistance(
   goal: Goal,
@@ -152,6 +159,10 @@ export function formatGoalDistance(
     (!override && goal.unit === "mi");
   if (useImperial) {
     const mi = goal.distanceMeters / MILE_METERS;
+    if (mi < 0.1) {
+      const yards = goal.distanceMeters / 0.9144;
+      return `${Math.round(yards)} yd`;
+    }
     return mi === 1 ? "1 mile" : `${trimZeroes(mi)} miles`;
   }
   const km = goal.distanceMeters / 1000;
