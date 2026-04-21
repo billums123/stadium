@@ -23,10 +23,11 @@ const DEFAULTS: Settings = {
   elevenKey: ENV_ELEVEN,
   openaiKey: ENV_OPENAI,
   athleteName: "THE ATHLETE",
-  // Stock voices present on every ElevenLabs plan. Picked intentionally
-  // different — a brighter-energy play-by-play and a drier color voice.
+  // Two voices picked for contrast: a steady broadcast baritone on
+  // play-by-play, and a high-energy sports/gaming commentator (Ninja
+  // from the ElevenLabs shared library) as the hyped color voice.
   voiceId: "JBFqnCBsd6RMkjVDRZzb",       // George — broadcast baritone
-  colorVoiceId: "nPczCjzI2devNBz1zQrb",  // Brian — deep narrator
+  colorVoiceId: "DcLiO3XaUWTu3gyon6hW",  // Ninja — Hype Gaming Commentary
   hypeLevel: 4,
   useDynamic: true,
   llmModel: DEFAULT_LLM_MODEL,

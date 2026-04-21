@@ -13,6 +13,9 @@ type Props = {
 };
 
 const PRESET_VOICES: Voice[] = [
+  // Shared-library additions tuned for sports/esports broadcast energy.
+  { voice_id: "DcLiO3XaUWTu3gyon6hW", name: "Ninja — hype esports commentator" },
+  // Stock ElevenLabs voices available on every plan.
   { voice_id: "JBFqnCBsd6RMkjVDRZzb", name: "George — broadcast baritone" },
   { voice_id: "cgSgspJ2msm6clMCkdW9", name: "Jessica — energetic host" },
   { voice_id: "iP95p4xoKVk53GoZ742B", name: "Chris — hype MC" },
