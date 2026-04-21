@@ -14,6 +14,7 @@ import { GoalPicker } from "./components/GoalPicker";
 import { GoalHud } from "./components/GoalHud";
 import { AthleteName } from "./components/AthleteName";
 import { Confetti } from "./components/Confetti";
+import { CountdownOverlay } from "./components/CountdownOverlay";
 
 function App() {
   const [settings, updateSettings] = useSettings();
@@ -136,6 +137,7 @@ function App() {
 
       <FlashOverlay line={status.lastLine} />
       <Confetti trigger={confettiTrigger} />
+      <CountdownOverlay value={status.countdown} />
 
       <SettingsSheet
         open={settingsOpen}

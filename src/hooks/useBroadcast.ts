@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createMotionTracker, type MotionState } from "../lib/motion";
 import { startSpeechListener } from "../lib/speech";
 import type { Line, Voice } from "../lib/commentary";
-import { synthesizeSpeech, blobToObjectUrl } from "../lib/elevenlabs";
+import { synthesizeSpeech } from "../lib/elevenlabs";
 import { loadCrowdBed, loadMusicBed, fadeTo } from "../lib/ambient";
 import { acquireWakeLock, type WakeLockHandle } from "../lib/wakelock";
 import { loadCareer, recordSession, saveCareer, type Career } from "../lib/career";
@@ -10,6 +10,7 @@ import { plan, INITIAL_DIRECTOR, type DirectorState, type DirectorPlan } from ".
 import { generateLine, warmUp as warmUpLLM } from "../lib/llm";
 import { stripAudioTags } from "../lib/tags";
 import { computeProgress, type GoalProgress } from "../lib/goal";
+import { countdownBeep, startingHorn, primeAudio } from "../lib/soundfx";
 import type { Settings } from "../lib/store";
 
 export type BroadcastPhase = "idle" | "warming" | "live" | "stopping";
@@ -26,7 +27,9 @@ export type BroadcastStatus = {
   error: string | null;
   career: Career;
   goalProgress: GoalProgress | null;
-  dynamicActive: boolean; // true when the last line came from the LLM, false = template fallback
+  dynamicActive: boolean;
+  /** null when not in cold-open. 3/2/1 during countdown. 0 on the horn. */
+  countdown: number | null;
 };
 
 const EMPTY_MOTION: MotionState = {
@@ -55,6 +58,7 @@ export function useBroadcast(settings: Settings) {
     career: loadCareer(),
     goalProgress: null,
     dynamicActive: false,
+    countdown: null,
   }));
 
   const directorRef = useRef<DirectorState>({ ...INITIAL_DIRECTOR });
@@ -100,9 +104,8 @@ export function useBroadcast(settings: Settings) {
       let text = p.fallbackLine.text;
       let usedDynamic = false;
 
-      if (settings.useDynamic && settings.openaiKey && p.prompts) {
+      if (settings.useDynamic && p.prompts) {
         const generated = await generateLine({
-          apiKey: settings.openaiKey,
           system: p.prompts.system,
           user: p.prompts.user,
           model: settings.llmModel,
@@ -131,42 +134,32 @@ export function useBroadcast(settings: Settings) {
         dynamicActive: usedDynamic,
       }));
 
-      // Strip any audio tags out of the display text? We keep them — v3
-      // TTS treats them as directions rather than reading them aloud, and
-      // on turbo_v2_5 they're just parenthetical styling that reads fine.
+      // Keep [audio-tag] cues in the display text but strip them before
+      // TTS: v3 would understand them, turbo_v2_5 reads them literally.
       try {
-        if (settings.elevenKey) {
-          try {
-            const hype = p.intensity / 100;
-            // Strip [tag] cues before TTS — v3 understands them, but our
-            // default turbo_v2_5 reads them literally as "bracket, dry".
-            const spokenText = stripAudioTags(text);
-            const blob = await synthesizeSpeech({
-              apiKey: settings.elevenKey,
-              voiceId: voiceIdFor(p.voice),
-              text: spokenText,
-              // Style pushes expressiveness. Color voice stays drier.
-              style:
-                p.voice === "color"
-                  ? Math.min(0.55, 0.25 + hype * 0.2)
-                  : Math.min(0.98, 0.45 + hype * 0.55),
-              // Stability goes DOWN as hype goes UP (more dramatic variance).
-              stability:
-                p.voice === "color"
-                  ? Math.max(0.35, 0.6 - hype * 0.2)
-                  : Math.max(0.12, 0.55 - hype * 0.4),
-              similarity: 0.85,
-            });
-            const url = blobToObjectUrl(blob);
-            await playUrlAtRate(url, speechAudioRef, rateForIntensity(p.intensity, p.voice));
-            URL.revokeObjectURL(url);
-            setPartial({ error: null });
-          } catch (err) {
-            setPartial({ error: (err as Error).message });
-            if ("speechSynthesis" in window) await browserSpeak(text, p.intensity);
-          }
-        } else if ("speechSynthesis" in window) {
-          await browserSpeak(stripAudioTags(text), p.intensity);
+        try {
+          const hype = p.intensity / 100;
+          const spokenText = stripAudioTags(text);
+          const blob = await synthesizeSpeech({
+            voiceId: voiceIdFor(p.voice),
+            text: spokenText,
+            style:
+              p.voice === "color"
+                ? Math.min(0.55, 0.25 + hype * 0.2)
+                : Math.min(0.98, 0.45 + hype * 0.55),
+            stability:
+              p.voice === "color"
+                ? Math.max(0.35, 0.6 - hype * 0.2)
+                : Math.max(0.12, 0.55 - hype * 0.4),
+            similarity: 0.85,
+          });
+          const url = URL.createObjectURL(blob);
+          await playUrlAtRate(url, speechAudioRef, rateForIntensity(p.intensity, p.voice));
+          URL.revokeObjectURL(url);
+          setPartial({ error: null });
+        } catch (err) {
+          setPartial({ error: (err as Error).message });
+          if ("speechSynthesis" in window) await browserSpeak(stripAudioTags(text), p.intensity);
         }
       } finally {
         speakingRef.current = false;
@@ -174,8 +167,6 @@ export function useBroadcast(settings: Settings) {
       }
     },
     [
-      settings.elevenKey,
-      settings.openaiKey,
       settings.useDynamic,
       settings.llmModel,
       setPartial,
@@ -184,36 +175,58 @@ export function useBroadcast(settings: Settings) {
   );
 
   const start = useCallback(async () => {
-    setPartial({ phase: "warming", error: null });
-    directorRef.current = { ...INITIAL_DIRECTOR };
+    setPartial({ phase: "warming", error: null, countdown: null });
+    // Skip the director's own cold-open script — we're running a real
+    // theatrical opening (welcome TTS + 3-2-1 countdown + horn) below.
+    directorRef.current = { ...INITIAL_DIRECTOR, coldOpenIndex: -1, hasOpened: true };
     lastLineRef.current = null;
     peakKmhRef.current = 0;
-    sessionStartRef.current = performance.now();
 
     wakeLockRef.current = await acquireWakeLock();
 
     // Prime the LLM connection in the background so the first real
     // commentary line doesn't pay the cold-start latency.
-    if (settings.useDynamic && settings.openaiKey) {
-      warmUpLLM(settings.openaiKey, settings.llmModel);
-    }
+    if (settings.useDynamic) warmUpLLM(settings.llmModel);
+
+    // Kick Web Audio alive inside the user gesture so the countdown
+    // beeps + horn can play on iOS without being autoplay-blocked.
+    primeAudio();
 
     try {
-      crowdAudioRef.current = await loadCrowdBed(settings.elevenKey || null);
+      crowdAudioRef.current = await loadCrowdBed();
       crowdAudioRef.current.play().catch(() => { /* autoplay blocked */ });
     } catch (e) { void e; }
 
-    if (settings.elevenKey) {
-      void (async () => {
-        const music = await loadMusicBed(settings.elevenKey);
-        if (!music) return;
-        musicAudioRef.current = music;
-        try {
-          await music.play();
-          fadeTo(music, 0.18, 2500);
-        } catch { /* autoplay blocked */ }
-      })();
+    void (async () => {
+      const music = await loadMusicBed();
+      if (!music) return;
+      musicAudioRef.current = music;
+      try {
+        await music.play();
+        fadeTo(music, 0.18, 2500);
+      } catch { /* autoplay blocked */ }
+    })();
+
+    // ─── 1. Welcome line ────────────────────────────────────────────
+    const athlete = settings.athleteName || "THE ATHLETE";
+    await speakWelcome(athlete, settings, careerRef.current);
+
+    // ─── 2. Visual 3-2-1 countdown with a beep per tick ─────────────
+    for (const n of [3, 2, 1] as const) {
+      setPartial({ countdown: n });
+      countdownBeep(false);
+      await wait(1000);
     }
+
+    // ─── 3. Horn + "GO!" flash ──────────────────────────────────────
+    setPartial({ countdown: 0 });
+    countdownBeep(true);
+    void startingHorn();
+    await wait(900);
+    setPartial({ countdown: null });
+
+    // ─── 4. NOW start the session clock + motion + reactive engine ──
+    sessionStartRef.current = performance.now();
 
     const tracker = createMotionTracker((m) => {
       motionRef.current = m;
@@ -223,7 +236,6 @@ export function useBroadcast(settings: Settings) {
         : null;
       setPartial({ motion: m, goalProgress: progress });
 
-      // Duck crowd bed up on urgency-3 moments (wire in speak path).
       if (crowdAudioRef.current) {
         const target = lastIntensityRef.current > 70 ? 0.34 : 0.22;
         if (Math.abs(crowdAudioRef.current.volume - target) > 0.04) {
@@ -271,16 +283,13 @@ export function useBroadcast(settings: Settings) {
 
     setPartial({ phase: "live" });
   }, [
-    settings.athleteName,
-    settings.elevenKey,
-    settings.hypeLevel,
-    settings.goal,
+    settings,
     setPartial,
     speakPlan,
   ]);
 
   const stop = useCallback(async () => {
-    setPartial({ phase: "stopping" });
+    setPartial({ phase: "stopping", countdown: null });
     if (tickRef.current != null) {
       clearInterval(tickRef.current);
       tickRef.current = null;
@@ -396,4 +405,79 @@ function browserSpeak(text: string, intensity: number): Promise<void> {
       resolve();
     }
   });
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Theatrical welcome line spoken before the 3-2-1 countdown. Tries the
+ * LLM with a focused cold-open prompt; falls back to a template that
+ * still sounds like a broadcaster when the call fails.
+ */
+async function speakWelcome(
+  athleteName: string,
+  settings: Settings,
+  career: Career
+): Promise<void> {
+  const careerTag =
+    career.sessions === 0
+      ? "their debut broadcast — no prior entries on record"
+      : `broadcast number ${career.sessions + 1}, ${career.totalKm.toFixed(1)} kilometres lifetime`;
+
+  const hour = new Date().getHours();
+  const slot =
+    hour < 6  ? "the pre-dawn slot" :
+    hour < 11 ? "the morning show" :
+    hour < 14 ? "the midday broadcast" :
+    hour < 18 ? "the afternoon card" :
+    hour < 22 ? "primetime" :
+                "the late-night edition";
+
+  const fallback = `Good evening, good morning, good afternoon — welcome to STADIUM. You are tuned in to ${slot}. Tonight's main event: ${athleteName}. We are underway in three.`;
+
+  let text = fallback;
+  if (settings.useDynamic) {
+    const generated = await generateLine({
+      system: `You are the voice of STADIUM — a live AI sports broadcast. Write ONE cold-open welcome line, exactly the kind of line a professional sports broadcaster reads at the top of the show. TWO to THREE short sentences. Under 40 words total. Warm, confident, slightly theatrical. British-inflected. Must greet the audience, identify STADIUM by name, reference the time-of-day slot, name the athlete, and end with "in three." or similar to cue an imminent countdown. No audio tags. No hedging.`,
+      user: `Athlete: ${athleteName}\nTime-of-day slot: ${slot}\nCareer: ${careerTag}\n\nWrite the cold-open welcome line now.`,
+      model: settings.llmModel,
+      maxTokens: 120,
+      timeoutMs: 3500,
+    });
+    if (generated) text = generated;
+  }
+
+  const voiceId = settings.voiceId;
+  try {
+    const blob = await synthesizeSpeech({
+      voiceId,
+      text: stripAudioTags(text),
+      style: 0.7,
+      stability: 0.4,
+      similarity: 0.85,
+    });
+    const url = URL.createObjectURL(blob);
+    await new Promise<void>((resolve) => {
+      const audio = new Audio(url);
+      audio.onended = () => resolve();
+      audio.onerror = () => resolve();
+      audio.play().catch(() => resolve());
+    });
+    URL.revokeObjectURL(url);
+  } catch {
+    // Network/auth failure — use browser TTS so the theatre still plays.
+    await new Promise<void>((resolve) => {
+      try {
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.rate = 1;
+        utter.onend = () => resolve();
+        utter.onerror = () => resolve();
+        speechSynthesis.speak(utter);
+      } catch {
+        resolve();
+      }
+    });
+  }
 }

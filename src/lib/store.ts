@@ -3,30 +3,20 @@ import { DEFAULT_MODEL as DEFAULT_LLM_MODEL } from "./llm";
 import type { Goal } from "./goal";
 
 export type Settings = {
-  elevenKey: string;
-  openaiKey: string;
   athleteName: string;
   voiceId: string;       // play-by-play commentator
-  colorVoiceId: string;  // color commentator (the dry second voice)
-  hypeLevel: number;     // 1-5, a floor — live intensity can climb past it
-  useDynamic: boolean;   // LLM-generated lines when a key is present
+  colorVoiceId: string;  // color commentator
+  hypeLevel: number;     // 1-5, a floor — live intensity climbs past it
+  useDynamic: boolean;   // LLM-generated lines on top of the template engine
   llmModel: string;
   goal: Goal | null;     // null = free run
 };
 
-const ENV_ELEVEN =
-  (import.meta.env?.VITE_ELEVENLABS_API_KEY as string | undefined)?.trim() || "";
-const ENV_OPENAI =
-  (import.meta.env?.VITE_OPENAI_API_KEY as string | undefined)?.trim() || "";
-
 const DEFAULTS: Settings = {
-  elevenKey: ENV_ELEVEN,
-  openaiKey: ENV_OPENAI,
   athleteName: "THE ATHLETE",
   // Two voices picked for contrast: a warm Southern-baritone broadcaster
-  // on play-by-play (George Daigle, shared library), and Tanner's
+  // on play-by-play (George Daigle, shared library), and the operator's
   // custom-designed "Hype Sports Announcer" as the hyped color voice.
-  // Only works against keys whose account owns the generated voice.
   voiceId: "1GCQiLWWVadqyDYY3CK9",       // George Daigle — Southern broadcast baritone
   colorVoiceId: "teSzrMn7PRfLv5Q5Fkob",  // Hype Sports Announcer (custom generated)
   hypeLevel: 4,
@@ -42,10 +32,7 @@ export function loadSettings(): Settings {
     const raw = localStorage.getItem(KEY);
     if (!raw) return DEFAULTS;
     const parsed = JSON.parse(raw) as Partial<Settings>;
-    // Env keys win when the user hasn't explicitly set one in the UI.
-    const elevenKey = parsed.elevenKey?.trim() || ENV_ELEVEN;
-    const openaiKey = parsed.openaiKey?.trim() || ENV_OPENAI;
-    return { ...DEFAULTS, ...parsed, elevenKey, openaiKey };
+    return { ...DEFAULTS, ...parsed };
   } catch {
     return DEFAULTS;
   }

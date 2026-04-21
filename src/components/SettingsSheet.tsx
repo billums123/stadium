@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import type { Settings } from "../lib/store";
-import { listVoices, checkKey, type Voice, type KeyStatus } from "../lib/elevenlabs";
+import { listVoices, type Voice } from "../lib/elevenlabs";
 import { MODEL_OPTIONS } from "../lib/llm";
 import { haptic } from "../lib/haptics";
 
@@ -30,41 +30,30 @@ const PRESET_VOICES: Voice[] = [
 
 export function SettingsSheet({ open, onClose, settings, update }: Props) {
   const [voices, setVoices] = useState<Voice[]>(PRESET_VOICES);
-  const [keyStatus, setKeyStatus] = useState<"idle" | "checking" | KeyStatus>("idle");
-  // Developer section: auto-expand only on first mount when neither key
-  // is present, never again. Don't bounce open/close as state changes.
-  const [devOpen, setDevOpen] = useState(
-    () => !settings.elevenKey && !settings.openaiKey
-  );
 
+  // When the sheet opens, try to expand the voice picker with the live
+  // account voice list (includes any generated voices on the operator's
+  // account). Falls back silently to presets if the backend key is bad.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     (async () => {
-      if (!settings.elevenKey) return;
-      setKeyStatus("checking");
-      const status = await checkKey(settings.elevenKey);
-      if (cancelled) return;
-      setKeyStatus(status);
-      if (status === "ok" || status === "scoped") {
-        try {
-          const v = await listVoices(settings.elevenKey);
-          if (!cancelled && v.length) {
-            const merged = [
-              ...v.slice(0, 20),
-              ...PRESET_VOICES.filter((p) => !v.find((x) => x.voice_id === p.voice_id)),
-            ];
-            setVoices(merged);
-          }
-        } catch {
-          /* keep presets — scoped keys may not have voices_read */
-        }
+      try {
+        const v = await listVoices();
+        if (cancelled || !v.length) return;
+        const merged = [
+          ...v.slice(0, 24),
+          ...PRESET_VOICES.filter((p) => !v.find((x) => x.voice_id === p.voice_id)),
+        ];
+        setVoices(merged);
+      } catch {
+        /* keep presets */
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [open, settings.elevenKey]);
+  }, [open]);
 
   return (
     <AnimatePresence>
@@ -171,134 +160,19 @@ export function SettingsSheet({ open, onClose, settings, update }: Props) {
               />
             </label>
 
-            <button
-              type="button"
-              onClick={() => {
-                haptic("tap");
-                setDevOpen((v) => !v);
-              }}
-              className="mt-2 flex w-full items-center justify-between rounded-lg border border-dashed border-[var(--color-line)] bg-transparent px-3 py-3 text-left transition hover:border-[var(--color-chalk)]/50"
-              aria-expanded={devOpen}
-            >
-              <div>
-                <div className="font-display text-[11px] uppercase tracking-[0.3em] text-[var(--color-crowd)]">
-                  developer
-                </div>
-                <div className="text-[11px] leading-snug text-[var(--color-crowd)]">
-                  {!settings.elevenKey && !settings.openaiKey
-                    ? "no keys detected — paste your own to go live"
-                    : "override API keys and model"}
-                </div>
-              </div>
-              <div className="font-display text-lg leading-none text-[var(--color-crowd)]">
-                {devOpen ? "−" : "+"}
-              </div>
-            </button>
-
-            <AnimatePresence initial={false}>
-              {devOpen && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.22 }}
-                  className="overflow-hidden"
-                >
-                  <div className="pt-4">
-                    <Field label="ElevenLabs API key">
-                      <input
-                        value={settings.elevenKey}
-                        onChange={(e) => {
-                          update({ elevenKey: e.target.value.trim() });
-                          setKeyStatus("idle");
-                        }}
-                        type="password"
-                        autoComplete="off"
-                        spellCheck={false}
-                        placeholder="sk_****  — stored locally, never sent to our servers"
-                        className="w-full min-h-[44px] rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 font-mono text-sm text-[var(--color-chalk)] placeholder-[var(--color-crowd)] outline-none focus:border-[var(--color-blaze)]"
-                      />
-                      <div className="mt-1 flex items-center justify-between text-[11px] uppercase tracking-[0.2em]">
-                        <span
-                          className={
-                            keyStatus === "ok" || keyStatus === "scoped"
-                              ? "text-[var(--color-volt)]"
-                              : keyStatus === "invalid" || keyStatus === "network-error"
-                              ? "text-[var(--color-blaze)]"
-                              : "text-[var(--color-crowd)]"
-                          }
-                        >
-                          {keyStatus === "ok"
-                            ? "✓ verified"
-                            : keyStatus === "scoped"
-                            ? "✓ scoped · good to go"
-                            : keyStatus === "invalid"
-                            ? "✗ invalid"
-                            : keyStatus === "network-error"
-                            ? "network error"
-                            : keyStatus === "checking"
-                            ? "checking…"
-                            : settings.elevenKey
-                            ? "unverified"
-                            : "no key — demo voice"}
-                        </span>
-                        <a
-                          href="https://elevenlabs.io/app/settings/api-keys"
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[var(--color-chalk)]/70 underline decoration-dotted"
-                        >
-                          get key
-                        </a>
-                      </div>
-                    </Field>
-
-                    <Field label="OpenAI API key">
-                      <input
-                        value={settings.openaiKey}
-                        onChange={(e) => update({ openaiKey: e.target.value.trim() })}
-                        type="password"
-                        autoComplete="off"
-                        spellCheck={false}
-                        placeholder="sk-proj-****  — stored locally, never sent to our servers"
-                        className="w-full min-h-[44px] rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 font-mono text-sm text-[var(--color-chalk)] placeholder-[var(--color-crowd)] outline-none focus:border-[var(--color-blaze)]"
-                      />
-                      <div className="mt-1 flex items-center justify-between text-[11px] uppercase tracking-[0.2em]">
-                        <span className="text-[var(--color-crowd)]">
-                          {settings.openaiKey
-                            ? settings.useDynamic
-                              ? "dynamic on"
-                              : "saved · dynamic off"
-                            : "no key — templates only"}
-                        </span>
-                        <a
-                          href="https://platform.openai.com/api-keys"
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[var(--color-chalk)]/70 underline decoration-dotted"
-                        >
-                          get key
-                        </a>
-                      </div>
-                    </Field>
-
-                    <Field label="LLM model">
-                      <select
-                        value={settings.llmModel}
-                        onChange={(e) => update({ llmModel: e.target.value })}
-                        className="w-full min-h-[44px] rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 font-mono text-sm text-[var(--color-chalk)] outline-none focus:border-[var(--color-blaze)]"
-                      >
-                        {MODEL_OPTIONS.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.label} — {m.note}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <Field label="LLM model">
+              <select
+                value={settings.llmModel}
+                onChange={(e) => update({ llmModel: e.target.value })}
+                className="w-full min-h-[44px] rounded-lg border border-[var(--color-line)] bg-[var(--color-ink)] px-3 font-mono text-sm text-[var(--color-chalk)] outline-none focus:border-[var(--color-blaze)]"
+              >
+                {MODEL_OPTIONS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label} — {m.note}
+                  </option>
+                ))}
+              </select>
+            </Field>
 
             <div className="mt-6 rounded-xl border border-[var(--color-line)] bg-[var(--color-ink)] p-4 text-sm text-[var(--color-chalk)]/80">
               <div className="font-display text-lg tracking-wider text-[var(--color-chalk)]">

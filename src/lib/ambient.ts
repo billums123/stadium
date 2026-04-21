@@ -17,10 +17,10 @@ const MUSIC_PROMPT =
 let cachedCrowdUrl: string | null = null;
 let cachedMusicUrl: string | null = null;
 
-export async function loadCrowdBed(apiKey: string | null): Promise<HTMLAudioElement> {
-  if (apiKey && !cachedCrowdUrl) {
+export async function loadCrowdBed(): Promise<HTMLAudioElement> {
+  if (!cachedCrowdUrl) {
     try {
-      const blob = await generateSfx({ text: CROWD_PROMPT, apiKey, durationSeconds: 12, promptInfluence: 0.7 });
+      const blob = await generateSfx({ text: CROWD_PROMPT, durationSeconds: 12, promptInfluence: 0.7 });
       cachedCrowdUrl = URL.createObjectURL(blob);
     } catch {
       cachedCrowdUrl = null;
@@ -41,18 +41,13 @@ export async function loadCrowdBed(apiKey: string | null): Promise<HTMLAudioElem
 /**
  * Fetches (or reuses) a 30-second generative music bed. Intended to be
  * loaded in the background after the crowd bed is already playing, and
- * cross-faded in once ready. Returns null if no key is configured or the
- * compose endpoint fails — callers should treat music as optional garnish.
+ * cross-faded in once ready. Returns null if the compose endpoint
+ * fails — callers should treat music as optional garnish.
  */
-export async function loadMusicBed(apiKey: string | null): Promise<HTMLAudioElement | null> {
-  if (!apiKey) return null;
+export async function loadMusicBed(): Promise<HTMLAudioElement | null> {
   if (!cachedMusicUrl) {
     try {
-      const blob = await generateMusic({
-        apiKey,
-        prompt: MUSIC_PROMPT,
-        musicLengthMs: 30_000,
-      });
+      const blob = await generateMusic({ prompt: MUSIC_PROMPT, musicLengthMs: 30_000 });
       cachedMusicUrl = URL.createObjectURL(blob);
     } catch {
       return null;

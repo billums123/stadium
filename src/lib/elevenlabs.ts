@@ -1,17 +1,13 @@
 /**
- * Minimal browser-side ElevenLabs client.
- * Uses the user's API key (stored in localStorage) and calls the REST API directly.
- * Voices: https://api.elevenlabs.io/v1/voices
- * TTS:    https://api.elevenlabs.io/v1/text-to-speech/{voice_id}
- * SFX:    https://api.elevenlabs.io/v1/sound-generation
+ * Client for the server-side `/api/*` proxy — the browser never sees
+ * the ElevenLabs key directly. The serverless functions in `/api/`
+ * hold it in `process.env.ELEVENLABS_API_KEY` and forward the request
+ * to the real ElevenLabs endpoints.
  */
-
-const BASE = "https://api.elevenlabs.io/v1";
 
 export type TTSOpts = {
   text: string;
   voiceId: string;
-  apiKey: string;
   modelId?: string;
   style?: number;
   stability?: number;
@@ -20,145 +16,100 @@ export type TTSOpts = {
 };
 
 export async function synthesizeSpeech(opts: TTSOpts): Promise<Blob> {
-  const {
-    text,
-    voiceId,
-    apiKey,
-    modelId = "eleven_turbo_v2_5",
-    style = 0.7,
-    stability = 0.35,
-    similarity = 0.85,
-    signal,
-  } = opts;
-
-  const res = await fetch(`${BASE}/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
+  const res = await fetch("/api/tts", {
     method: "POST",
-    headers: {
-      "xi-api-key": apiKey,
-      "Content-Type": "application/json",
-      Accept: "audio/mpeg",
-    },
+    headers: { "Content-Type": "application/json", Accept: "audio/mpeg" },
     body: JSON.stringify({
-      text,
-      model_id: modelId,
-      voice_settings: {
-        stability,
-        similarity_boost: similarity,
-        style,
-        use_speaker_boost: true,
-      },
+      text: opts.text,
+      voiceId: opts.voiceId,
+      modelId: opts.modelId,
+      style: opts.style,
+      stability: opts.stability,
+      similarity: opts.similarity,
     }),
-    signal,
+    signal: opts.signal,
   });
 
   if (!res.ok) {
     const msg = await res.text().catch(() => "");
-    throw new Error(`ElevenLabs TTS failed: ${res.status} ${msg.slice(0, 160)}`);
+    throw new Error(`TTS failed: ${res.status} ${msg.slice(0, 180)}`);
   }
   return res.blob();
 }
 
 export type SFXOpts = {
   text: string;
-  apiKey: string;
-  durationSeconds?: number; // 0.5 - 22
-  promptInfluence?: number; // 0-1
+  durationSeconds?: number;
+  promptInfluence?: number;
   signal?: AbortSignal;
 };
 
 export async function generateSfx(opts: SFXOpts): Promise<Blob> {
-  const { text, apiKey, durationSeconds, promptInfluence = 0.6, signal } = opts;
-
-  const body: Record<string, unknown> = {
-    text,
-    prompt_influence: promptInfluence,
-  };
-  if (durationSeconds != null) body.duration_seconds = durationSeconds;
-
-  const res = await fetch(`${BASE}/sound-generation`, {
+  const res = await fetch("/api/sfx", {
     method: "POST",
-    headers: {
-      "xi-api-key": apiKey,
-      "Content-Type": "application/json",
-      Accept: "audio/mpeg",
-    },
-    body: JSON.stringify(body),
-    signal,
+    headers: { "Content-Type": "application/json", Accept: "audio/mpeg" },
+    body: JSON.stringify({
+      text: opts.text,
+      durationSeconds: opts.durationSeconds,
+      promptInfluence: opts.promptInfluence,
+    }),
+    signal: opts.signal,
   });
 
   if (!res.ok) {
     const msg = await res.text().catch(() => "");
-    throw new Error(`ElevenLabs SFX failed: ${res.status} ${msg.slice(0, 160)}`);
+    throw new Error(`SFX failed: ${res.status} ${msg.slice(0, 180)}`);
+  }
+  return res.blob();
+}
+
+export type MusicOpts = {
+  prompt: string;
+  musicLengthMs?: number;
+  signal?: AbortSignal;
+};
+
+export async function generateMusic(opts: MusicOpts): Promise<Blob> {
+  const res = await fetch("/api/music", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "audio/mpeg" },
+    body: JSON.stringify({
+      prompt: opts.prompt,
+      musicLengthMs: opts.musicLengthMs,
+    }),
+    signal: opts.signal,
+  });
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(`Music failed: ${res.status} ${msg.slice(0, 180)}`);
   }
   return res.blob();
 }
 
 export type Voice = { voice_id: string; name: string; category?: string };
 
-export type MusicOpts = {
-  apiKey: string;
-  prompt: string;
-  musicLengthMs?: number; // 3000 - 600000
-  signal?: AbortSignal;
-};
-
-export async function generateMusic(opts: MusicOpts): Promise<Blob> {
-  const { apiKey, prompt, musicLengthMs = 30000, signal } = opts;
-
-  const res = await fetch(`${BASE}/music?output_format=mp3_44100_128`, {
-    method: "POST",
-    headers: {
-      "xi-api-key": apiKey,
-      "Content-Type": "application/json",
-      Accept: "audio/mpeg",
-    },
-    body: JSON.stringify({
-      prompt,
-      music_length_ms: Math.max(3000, Math.min(600000, Math.round(musicLengthMs))),
-    }),
-    signal,
-  });
-
-  if (!res.ok) {
-    const msg = await res.text().catch(() => "");
-    throw new Error(`Music compose failed: ${res.status} ${msg.slice(0, 180)}`);
-  }
-  return res.blob();
-}
-
-export async function listVoices(apiKey: string): Promise<Voice[]> {
-  const res = await fetch(`${BASE}/voices`, { headers: { "xi-api-key": apiKey } });
+export async function listVoices(): Promise<Voice[]> {
+  const res = await fetch("/api/voices");
   if (!res.ok) throw new Error(`Voices failed: ${res.status}`);
   const json = (await res.json()) as { voices: Voice[] };
   return json.voices ?? [];
 }
 
-export type KeyStatus = "ok" | "scoped" | "invalid" | "network-error";
-
 /**
- * A 401 with `missing_permissions` means the key is real but narrowly
- * scoped — fine for STADIUM as long as it has the endpoints we actually
- * call. Any other failure code is treated as invalid.
+ * Lightweight server-health check. Returns true when both keys look
+ * configured on the backend (indirectly — we hit /api/voices and take
+ * a 200 as evidence the ElevenLabs key works).
  */
-export async function checkKey(apiKey: string): Promise<KeyStatus> {
+export type KeyStatus = "ok" | "missing" | "network-error";
+
+export async function checkKey(): Promise<KeyStatus> {
   try {
-    const res = await fetch(`${BASE}/user`, { headers: { "xi-api-key": apiKey } });
+    const res = await fetch("/api/voices");
     if (res.ok) return "ok";
-    if (res.status === 401) {
-      const body = await res.text().catch(() => "");
-      return body.includes("missing_permissions") ? "scoped" : "invalid";
-    }
-    return "invalid";
+    if (res.status === 500) return "missing";
+    return "missing";
   } catch {
     return "network-error";
   }
-}
-
-export async function verifyKey(apiKey: string): Promise<boolean> {
-  const s = await checkKey(apiKey);
-  return s === "ok" || s === "scoped";
-}
-
-export function blobToObjectUrl(blob: Blob): string {
-  return URL.createObjectURL(blob);
 }
