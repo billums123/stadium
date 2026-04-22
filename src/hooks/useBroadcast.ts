@@ -224,7 +224,11 @@ export function useBroadcast(settings: Settings) {
 
     // ─── 1. Welcome line ────────────────────────────────────────────
     const athlete = settings.athleteName || "THE ATHLETE";
-    await speakWelcome(athlete, settings, careerRef.current);
+    await speakWelcome(athlete, settings, careerRef.current, (line) => {
+      lastLineRef.current = line;
+      setPartial({ lastLine: line, speaking: true });
+    });
+    setPartial({ speaking: false });
 
     // ─── 2. Visual 3-2-1 countdown with a beep per tick ─────────────
     for (const n of [3, 2, 1] as const) {
@@ -556,8 +560,10 @@ export function useBroadcast(settings: Settings) {
  */
 function rateForIntensity(intensity: number, voice: Voice): number {
   const n = Math.max(0, Math.min(100, intensity)) / 100;
-  if (voice === "color") return 0.98 + n * 0.12;
-  return 0.99 + n * 0.22;
+  // Keep the boost modest — mobile browsers' pitch-preservation time-
+  // stretcher introduces audible artefacts ("choppy") above ~1.1×.
+  if (voice === "color") return 0.98 + n * 0.06;
+  return 0.99 + n * 0.10;
 }
 
 type WithPitchFlags = HTMLAudioElement & {
@@ -651,7 +657,8 @@ function wait(ms: number): Promise<void> {
 async function speakWelcome(
   athleteName: string,
   settings: Settings,
-  career: Career
+  career: Career,
+  onLineReady: (line: Line) => void
 ): Promise<void> {
   const careerTag =
     career.sessions === 0
@@ -680,6 +687,15 @@ async function speakWelcome(
     });
     if (generated) text = generated;
   }
+
+  // Publish the welcome line to the HUD before speech starts so the
+  // caption shows the actual greeting instead of the idle placeholder.
+  onLineReady({
+    trigger: "cold-open",
+    voice: "play",
+    urgency: 3,
+    text,
+  });
 
   const voiceId = settings.voiceId;
   try {

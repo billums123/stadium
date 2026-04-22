@@ -113,7 +113,7 @@ export type DirectorPlan = {
   prompts: { system: string; user: string } | null;
 };
 
-const COOLDOWN_DEFAULT_MS = 12_000;
+const COOLDOWN_DEFAULT_MS = 9_000;
 
 /** Classify the moment and produce the plan. */
 export function plan(
@@ -300,7 +300,7 @@ export function plan(
   }
 
   // R2 — cadence-driven fillers with flavour rotation.
-  const cadence = Math.max(12_000, 42_000 - s.hypeFloor * 5_000);
+  const cadence = Math.max(9_000, 34_000 - s.hypeFloor * 5_000);
   if (sinceLast > cadence) {
     const ev = pickFillerEvent(state, s);
     const line = fillerLine(ev, asSig(s));

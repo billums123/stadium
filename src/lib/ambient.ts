@@ -20,7 +20,7 @@ let cachedMusicUrl: string | null = null;
 export async function loadCrowdBed(): Promise<HTMLAudioElement> {
   if (!cachedCrowdUrl) {
     try {
-      const blob = await generateSfx({ text: CROWD_PROMPT, durationSeconds: 12, promptInfluence: 0.7 });
+      const blob = await generateSfx({ text: CROWD_PROMPT, durationSeconds: 22, promptInfluence: 0.7 });
       cachedCrowdUrl = URL.createObjectURL(blob);
     } catch {
       cachedCrowdUrl = null;
