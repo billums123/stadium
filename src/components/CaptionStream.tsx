@@ -36,25 +36,23 @@ export function CaptionStream({ line, speaking }: { line: Line | null; speaking:
           className={`relative rounded-xl border-2 ${urgencyAccent} bg-[var(--color-ink-2)]/80 px-3 py-3 backdrop-blur sm:px-4 sm:py-4`}
         >
           <div className="font-display text-[clamp(1.15rem,5vw,2.1rem)] leading-[1.1] text-balance">
-            {line ? stripAudioTags(line.text) : "Awaiting broadcast. Press the button."}
+            {line ? stripAudioTags(line.text) : "Tap GO to begin."}
           </div>
-          {speaking && (
-            <motion.div
-              className="mt-3 flex items-end gap-1 text-[var(--color-blaze)]"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-            >
-              {[0, 1, 2, 3, 4].map((i) => (
-                <motion.span
-                  key={i}
-                  className="w-[3px] rounded-sm bg-current"
-                  animate={{ height: [4, 16, 8, 14, 6] }}
-                  transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.08 }}
-                />
-              ))}
-              <span className="ml-2 text-[10px] uppercase tracking-[0.25em]">On air</span>
-            </motion.div>
-          )}
+          <div
+            className="mt-3 flex h-5 items-end gap-1 text-[var(--color-blaze)]"
+            style={{ opacity: speaking ? 1 : 0 }}
+            aria-hidden={!speaking}
+          >
+            {[0, 1, 2, 3, 4].map((i) => (
+              <motion.span
+                key={i}
+                className="w-[3px] rounded-sm bg-current"
+                animate={speaking ? { height: [4, 16, 8, 14, 6] } : { height: 4 }}
+                transition={{ duration: 0.9, repeat: speaking ? Infinity : 0, delay: i * 0.08 }}
+              />
+            ))}
+            <span className="ml-2 text-[10px] uppercase tracking-[0.25em]">On air</span>
+          </div>
         </motion.div>
       </AnimatePresence>
     </div>

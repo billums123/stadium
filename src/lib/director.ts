@@ -214,8 +214,7 @@ export function plan(
     lastLine.voice === "play" &&
     state.lastVoice === "play" &&
     sinceLast > 4500 &&
-    sinceLast < COOLDOWN_DEFAULT_MS &&
-    Math.random() < 0.55
+    sinceLast < COOLDOWN_DEFAULT_MS
   ) {
     const line = buildColorAside(asSig(s), lastLine);
     return pack(state, s, progress, "color-aside", line, {

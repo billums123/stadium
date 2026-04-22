@@ -267,6 +267,20 @@ export function useBroadcast(settings: Settings) {
         ? "dash"
         : "normal";
 
+      // Live hype: derive a 0–100 number from real-time motion so the
+      // HUD meter moves between announcer lines instead of freezing at
+      // the last line's intensity. Line events still push the peak via
+      // lastIntensityRef afterglow.
+      const liveHype = computeLiveHype({
+        paceKmh: m.paceKmh,
+        progressPct: progress?.distancePct ?? null,
+        dashToFinish: !!progress?.dashToFinish,
+        victory: inVictoryWindow,
+        lastIntensity: lastIntensityRef.current,
+        hypeFloor: settings.hypeLevel,
+      });
+      setPartial({ hypeScore: liveHype });
+
       // Crowd bed: phase-aware ceiling, plus a gentle bump by
       // intensity. Hard-duck during TTS is handled by duckBeds().
       if (crowdAudioRef.current && !speakingRef.current) {
@@ -582,8 +596,32 @@ function duckBeds(
   music: HTMLAudioElement | null,
   ducked: boolean
 ) {
-  if (crowd) fadeTo(crowd, ducked ? 0.08 : 0.22, 180);
-  if (music) fadeTo(music, ducked ? 0.05 : 0.18, 180);
+  if (crowd) fadeTo(crowd, 0.22, 260);
+  if (music) fadeTo(music, ducked ? 0.12 : 0.18, 260);
+}
+
+/**
+ * Blend real-time motion into a 0–100 "hype" reading. Drives the HUD
+ * meter so it responds to pace and progress between announcer events.
+ * Peaks from the last spoken line leak in as an afterglow.
+ */
+function computeLiveHype(opts: {
+  paceKmh: number;
+  progressPct: number | null;
+  dashToFinish: boolean;
+  victory: boolean;
+  lastIntensity: number;
+  hypeFloor: number;
+}): number {
+  if (opts.victory) return 100;
+  let score = (opts.hypeFloor - 1) * 6;          // 0–24 from user floor
+  score += Math.min(45, opts.paceKmh * 3.2);      // pace contribution
+  if (opts.progressPct != null) {
+    score += Math.min(15, opts.progressPct * 15); // progress through goal
+  }
+  if (opts.dashToFinish) score += 12;             // final-dash punch
+  score = Math.max(score, opts.lastIntensity * 0.75); // line afterglow
+  return Math.round(Math.max(0, Math.min(100, score)));
 }
 
 function browserSpeak(text: string, intensity: number): Promise<void> {

@@ -284,22 +284,23 @@ function BottomBar({
   onForceLine: () => void;
 }) {
   const isLive = phase === "live";
+  const showDev = import.meta.env.DEV;
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--color-line)] bg-[var(--color-ink)]/92 px-3 pb-[max(env(safe-area-inset-bottom,0.5rem),0.5rem)] pt-2 backdrop-blur sm:px-4 sm:pt-3">
       <div className="mx-auto flex w-full max-w-xl items-center justify-between gap-2">
-        {isLive ? (
+        {isLive && showDev ? (
           <ActionButton label="WALK" sub="sim" onClick={() => onSimulate(5)} />
         ) : (
           <div className="w-[82px] sm:w-[92px]" />
         )}
         <BroadcastButton phase={phase} onStart={onStart} onStop={onStop} />
-        {isLive ? (
-          <ActionButton label="HYPE" sub="line" accent onClick={onForceLine} />
+        {isLive && showDev ? (
+          <ActionButton label="CUE" sub="line" accent onClick={onForceLine} />
         ) : (
           <div className="w-[82px] sm:w-[92px]" />
         )}
       </div>
-      {isLive && (
+      {isLive && showDev && (
         <div className="mx-auto mt-1.5 flex w-full max-w-xl justify-center">
           <button
             onClick={() => onSimulate(11)}
