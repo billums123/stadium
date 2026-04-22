@@ -62,22 +62,44 @@ export async function loadMusicBed(): Promise<HTMLAudioElement | null> {
 }
 
 /**
- * Music-bed volume target given a goal-progress percentage (0..1) and
- * a hype score (0..100). The bed swells as goal approaches 100% —
- * and on free-run sessions hype drives the swell instead. Capped at
- * 0.34 so commentary still sits on top.
+ * Phase signal that shapes the music + crowd ceilings. Dash means
+ * the athlete is in the last ~5% / 15 m stretch before a goal;
+ * victory is the 3-second window after goal completion (horn has
+ * just fired, music should peak). Anything else is `normal`.
  */
-export function musicVolumeFor(goalPct: number | null, hype: number): number {
+export type MusicPhase = "normal" | "dash" | "victory";
+
+/**
+ * Music-bed volume target given a goal-progress percentage (0..1),
+ * a hype score (0..100), and the current phase. Dash raises the
+ * ceiling. Victory pins the bed at peak for a few seconds to
+ * punctuate the finish.
+ */
+export function musicVolumeFor(
+  goalPct: number | null,
+  hype: number,
+  phase: MusicPhase = "normal"
+): number {
+  if (phase === "victory") return 0.55;
   const BASE = 0.14;
-  const CEILING = 0.34;
-  // Progress component: scale more aggressively past 60%, so the last
-  // stretch of the goal really lifts.
+  const CEILING = phase === "dash" ? 0.48 : 0.34;
+
   const p = goalPct != null ? Math.max(0, Math.min(1, goalPct)) : 0;
   const progComponent = p < 0.6 ? p * 0.15 : 0.09 + (p - 0.6) * 0.5;
-  // Hype component: 0 at 0, ~0.12 at 100 — meaningful for free-run.
   const hypeComponent = Math.max(0, Math.min(1, hype / 100)) * 0.12;
   const picked = goalPct != null ? progComponent : hypeComponent;
   return Math.min(CEILING, BASE + picked);
+}
+
+/**
+ * Crowd volume target, same phase-aware shape. Crowd leans louder
+ * than music on dash/victory because a stadium roar at the finish
+ * line is the expected sound.
+ */
+export function crowdVolumeFor(phase: MusicPhase = "normal"): number {
+  if (phase === "victory") return 0.6;
+  if (phase === "dash") return 0.45;
+  return 0.22;
 }
 
 /**

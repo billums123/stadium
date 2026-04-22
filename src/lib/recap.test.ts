@@ -26,6 +26,8 @@ const progress = (over: Partial<GoalProgress>): GoalProgress => ({
   requiredKmh: null,
   timeLeftMs: 0,
   status: "on-pace",
+  remainingMeters: 1000,
+  dashToFinish: false,
   ...over,
 });
 

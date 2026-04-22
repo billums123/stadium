@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createMotionTracker, type MotionState } from "../lib/motion";
 import type { Line, Voice } from "../lib/commentary";
 import { synthesizeSpeech } from "../lib/elevenlabs";
-import { loadCrowdBed, loadMusicBed, fadeTo, musicVolumeFor } from "../lib/ambient";
+import { loadCrowdBed, loadMusicBed, fadeTo, musicVolumeFor, crowdVolumeFor, type MusicPhase } from "../lib/ambient";
 import { acquireWakeLock, type WakeLockHandle } from "../lib/wakelock";
 import { loadCareer, recordSession, saveCareer, type Career } from "../lib/career";
 import {
@@ -17,7 +17,7 @@ import { computeRecap, isRecapWorthy, type RecapSnapshot } from "../lib/recap";
 import { generateLine, warmUp as warmUpLLM } from "../lib/llm";
 import { stripAudioTags } from "../lib/tags";
 import { computeProgress, type GoalProgress } from "../lib/goal";
-import { countdownBeep, startingHorn, primeAudio } from "../lib/soundfx";
+import { countdownBeep, startingHorn, victoryHorn, primeAudio } from "../lib/soundfx";
 import type { Settings } from "../lib/store";
 
 export type BroadcastPhase = "idle" | "warming" | "live" | "stopping" | "recap";
@@ -71,6 +71,8 @@ export function useBroadcast(settings: Settings) {
   const sessionStartRef = useRef(0);
   const peakKmhRef = useRef(0);
   const peakHypeRef = useRef(0);
+  const victoryWindowUntilRef = useRef(0);
+  const announcedCompleteRef = useRef(false);
   const careerRef = useRef<Career>(status.career);
   const lastLineRef = useRef<Line | null>(null);
   const lastIntensityRef = useRef(0);
@@ -192,6 +194,8 @@ export function useBroadcast(settings: Settings) {
     lastLineRef.current = null;
     peakKmhRef.current = 0;
     peakHypeRef.current = 0;
+    victoryWindowUntilRef.current = 0;
+    announcedCompleteRef.current = false;
 
     wakeLockRef.current = await acquireWakeLock();
 
@@ -247,22 +251,42 @@ export function useBroadcast(settings: Settings) {
         : null;
       setPartial({ motion: m, goalProgress: progress });
 
-      // Gentle duck of the crowd bed by intensity; actual hard-duck
-      // during TTS is handled by duckBeds() in speakPlan.
+      // Goal-complete transition: fire the victory horn ONCE and
+      // open a 3-second victory window where beds peak.
+      if (progress && progress.status === "complete" && !announcedCompleteRef.current) {
+        announcedCompleteRef.current = true;
+        victoryWindowUntilRef.current = performance.now() + 3200;
+        void victoryHorn();
+      }
+
+      // Determine the current audio phase.
+      const inVictoryWindow = performance.now() < victoryWindowUntilRef.current;
+      const phase: MusicPhase = inVictoryWindow
+        ? "victory"
+        : progress?.dashToFinish
+        ? "dash"
+        : "normal";
+
+      // Crowd bed: phase-aware ceiling, plus a gentle bump by
+      // intensity. Hard-duck during TTS is handled by duckBeds().
       if (crowdAudioRef.current && !speakingRef.current) {
-        const target = lastIntensityRef.current > 70 ? 0.32 : 0.22;
-        if (Math.abs(crowdAudioRef.current.volume - target) > 0.04) {
-          fadeTo(crowdAudioRef.current, target, 600);
+        const base = crowdVolumeFor(phase);
+        const target =
+          phase === "normal" && lastIntensityRef.current > 70 ? 0.32 : base;
+        if (Math.abs(crowdAudioRef.current.volume - target) > 0.03) {
+          fadeTo(crowdAudioRef.current, target, phase === "victory" ? 250 : 600);
         }
       }
 
-      // Pump-up music swell: rise toward goal-wire (or on a free-run
-      // surge), fade back when things cool. Skip while TTS is
-      // speaking — duckBeds handles that.
+      // Music bed: swells on dash, peaks on victory.
       if (musicAudioRef.current && !speakingRef.current) {
-        const target = musicVolumeFor(progress?.distancePct ?? null, lastIntensityRef.current);
+        const target = musicVolumeFor(
+          progress?.distancePct ?? null,
+          lastIntensityRef.current,
+          phase
+        );
         if (Math.abs(musicAudioRef.current.volume - target) > 0.015) {
-          fadeTo(musicAudioRef.current, target, 900);
+          fadeTo(musicAudioRef.current, target, phase === "victory" ? 250 : 900);
         }
       }
     });

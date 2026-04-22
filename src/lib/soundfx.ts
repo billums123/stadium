@@ -100,6 +100,79 @@ export function startingHorn(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, Math.round(duration * 1000)));
 }
 
+/**
+ * Triumphant 2.2s victory horn — three layered air-horn stabs on a
+ * rising major-chord arpeggio, fuller + brighter than the starting
+ * horn. Played on goal complete to punctuate the finish.
+ */
+export function victoryHorn(): Promise<void> {
+  const ac = audioContext();
+  const now = ac.currentTime;
+  const duration = 2.2;
+
+  // Initial noise crack — the "airhorn puff" transient.
+  const noiseBuf = ac.createBuffer(1, ac.sampleRate * 0.35, ac.sampleRate);
+  const data = noiseBuf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) {
+    const env = Math.exp(-i / (ac.sampleRate * 0.06));
+    data[i] = (Math.random() * 2 - 1) * env;
+  }
+  const noise = ac.createBufferSource();
+  noise.buffer = noiseBuf;
+  const noiseFilter = ac.createBiquadFilter();
+  noiseFilter.type = "bandpass";
+  noiseFilter.frequency.value = 3200;
+  noiseFilter.Q.value = 0.7;
+  const noiseGain = ac.createGain();
+  noiseGain.gain.setValueAtTime(0.85, now);
+  noise.connect(noiseFilter).connect(noiseGain).connect(ac.destination);
+  noise.start(now);
+  noise.stop(now + 0.35);
+
+  // Three stacked stabs on a major triad (root + third + fifth),
+  // each 0.55s apart, giving a short "bah bah BAAAH" victory motif.
+  const stab = (base: number, detune: number, startOffset: number, length: number) => {
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(base, now + startOffset + 0.02);
+    osc.frequency.exponentialRampToValueAtTime(base * 1.03, now + startOffset + 0.1);
+    osc.detune.value = detune;
+
+    gain.gain.setValueAtTime(0.0001, now + startOffset);
+    gain.gain.linearRampToValueAtTime(0.38, now + startOffset + 0.06);
+    gain.gain.setValueAtTime(0.38, now + startOffset + length - 0.12);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + startOffset + length);
+
+    const filter = ac.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 3200;
+    filter.Q.value = 0.9;
+
+    osc.connect(filter).connect(gain).connect(ac.destination);
+    osc.start(now + startOffset);
+    osc.stop(now + startOffset + length);
+  };
+
+  // Root at A3 (220), third at C#4 (277), fifth at E4 (330).
+  // First stab at t=0, second at t=0.55 (tonic+third), third sustained finish.
+  stab(220, -8, 0.0, 0.35);
+  stab(277, 0,  0.0, 0.35);
+  stab(330, 8,  0.0, 0.35);
+
+  stab(220, -8, 0.55, 0.35);
+  stab(277, 0,  0.55, 0.35);
+  stab(330, 8,  0.55, 0.35);
+
+  // Third stab is longer — the sustained crescendo.
+  stab(220, -10, 1.1, 1.05);
+  stab(277,  0,  1.1, 1.05);
+  stab(330, 10,  1.1, 1.05);
+  stab(440,  0,  1.1, 1.05); // octave up on top for the "yes!" brightness
+
+  return new Promise((resolve) => setTimeout(resolve, Math.round(duration * 1000)));
+}
+
 /** Kick the context alive during a user gesture so autoplay doesn't gate the countdown. */
 export function primeAudio(): void {
   audioContext();

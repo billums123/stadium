@@ -191,11 +191,11 @@ export function buildPaceSurge(s: Signal): Line {
   const p = spokenPace(s.motion.paceKmh, s.units);
   const name = s.athleteName;
   const opts = [
-    `${maybePrefix()}${name} has found another gear. ${p}. Where was that being kept.`,
-    `A shift. ${name} at ${p}. Somebody has decided today is the day.`,
-    `${maybePrefix()}that's a surge. ${p}. Not scheduled. Very welcome.`,
-    `${name} up to ${p}. The scouts just quietly moved forward one row.`,
-    `Second gear engaged. ${p}. We are witnessing something.`,
+    `Another gear. ${name} at ${p}.`,
+    `A shift. ${p}. Somebody decided today.`,
+    `${name}, ${p}. Scouts just leaned forward.`,
+    `Surge. ${p}. Not scheduled. Welcome.`,
+    `Second gear. ${p}. Here we go.`,
   ];
   return { trigger: "pace-surge", voice: "play", urgency: 3, text: rand(opts) };
 }
@@ -205,10 +205,10 @@ export function buildPaceCrash(s: Signal): Line {
   const p = spokenPace(s.motion.paceKmh, s.units);
   const name = s.athleteName;
   const opts = [
-    `Slight dip. ${name} at ${p}. Strategic, presumably.`,
-    `${p} now. A recalibration. No cause for alarm, he says, checking the time.`,
-    `Pace check: ${p}. Saving something for the stretch, is the generous reading.`,
-    `A breather at ${p}. The kind champions take. Allegedly.`,
+    `Slight dip. ${p}. Strategic, presumably.`,
+    `${p}. A breather. Saving the stretch.`,
+    `${name} eases to ${p}. Reading the room.`,
+    `${p}. The kind champions take.`,
   ];
   return { trigger: "pace-crash", voice: "play", urgency: 2, text: rand(opts) };
 }
@@ -218,10 +218,10 @@ export function buildSteady(s: Signal): Line {
   const p = spokenPace(s.motion.paceKmh, s.units);
   const name = s.athleteName;
   const opts = [
-    `${name} settled into ${paceWord(s.motion.paceKmh)} — ${p}.`,
-    `Holding ${p}. Rhythmic. The kind of pace you'd describe as "fine", in a good way.`,
-    `Steady ${p}. ${name} doing what ${name} does.`,
-    `${p} and quiet. Form looks intact. We are, if nothing else, consistent.`,
+    `${name} settles into ${paceWord(s.motion.paceKmh)} — ${p}.`,
+    `Holding ${p}. Metronomic.`,
+    `Steady ${p}. Form intact.`,
+    `${p}. ${name} doing ${name} things.`,
   ];
   return { trigger: "steady", voice: "play", urgency: 1, text: rand(opts) };
 }
@@ -285,10 +285,10 @@ export function buildWeather(_s: Signal): Line {
 export function buildFinishStrong(s: Signal): Line {
   const name = s.athleteName;
   const opts = [
-    `Home stretch now. ${name} with one more push — possibly two. Let's not commit to two.`,
-    `We're in the closing minutes. ${name} has the look of someone about to earn a shower they'll remember.`,
-    `${maybePrefix()}final section. Everything ${name} has opened this app for — it was all for this.`,
-    `Final stretch. Crowd stands. Neighbour's cat stands. ${name} does not stand, ${name} is still moving.`,
+    `Home stretch. ${name}, one more push.`,
+    `Closing minutes. The shower is earning itself.`,
+    `Final section. All of this was for this.`,
+    `Crowd stands. ${name} keeps moving.`,
   ];
   return { trigger: "finish-strong", voice: "play", urgency: 3, text: rand(opts) };
 }

@@ -97,6 +97,11 @@ export type GoalProgress = {
   /** ms of time remaining (may go negative once past the budget) */
   timeLeftMs: number;
   status: GoalStatus;
+  /** Remaining distance in metres (clamped at 0 once finished). */
+  remainingMeters: number;
+  /** True in the final stretch — whichever is larger of 15 m or 5%
+   *  of goal distance. Used to crank audio + fire final-dash events. */
+  dashToFinish: boolean;
 };
 
 export function computeProgress(
@@ -128,6 +133,9 @@ export function computeProgress(
       ? "behind"
       : "on-pace";
 
+  const dashThreshold = Math.max(15, 0.05 * goal.distanceMeters);
+  const dashToFinish = distancePct < 1 && remainingMeters <= dashThreshold;
+
   return {
     goal,
     distancePct,
@@ -136,6 +144,8 @@ export function computeProgress(
     requiredKmh,
     timeLeftMs,
     status,
+    remainingMeters,
+    dashToFinish,
   };
 }
 

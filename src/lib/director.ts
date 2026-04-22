@@ -64,6 +64,7 @@ export type Event =
   | "goal-approach"
   | "goal-behind"
   | "goal-final-push"
+  | "goal-final-dash"
   | "goal-complete"
   | "goal-failed"
   | "color-aside"
@@ -79,6 +80,7 @@ export type DirectorState = {
   lastVoice: Voice | null;
   announcedGoalComplete: boolean;
   announcedGoalFailed: boolean;
+  announcedFinalDash: boolean;
 };
 
 export const INITIAL_DIRECTOR: DirectorState = {
@@ -91,6 +93,7 @@ export const INITIAL_DIRECTOR: DirectorState = {
   lastVoice: null,
   announcedGoalComplete: false,
   announcedGoalFailed: false,
+  announcedFinalDash: false,
 };
 
 export type DirectorPlan = {
@@ -155,13 +158,13 @@ export function plan(
     });
   }
 
-  // Goal completion / failure announcements jump the queue.
+  // Goal completion / failure / dash announcements jump the queue.
   if (progress && !state.announcedGoalComplete && progress.status === "complete") {
     const line: Line = {
       trigger: "milestone-km",
       voice: "play",
       urgency: 3,
-      text: `Goal complete. ${s.athleteName} hits the target.`,
+      text: `${s.athleteName} hits it. Goal.`,
     };
     return pack(state, s, progress, "goal-complete", line, {
       tag: "[shouting, ecstatic]",
@@ -173,11 +176,26 @@ export function plan(
       trigger: "check-in",
       voice: "color",
       urgency: 2,
-      text: `Clock's gone. The goal eludes ${s.athleteName} — for now.`,
+      text: `Clock's gone. No shame.`,
     };
     return pack(state, s, progress, "goal-failed", line, {
       tag: "[measured, sympathetic]",
       next: { ...state, lastTriggerAt: now, lastVoice: "color", announcedGoalFailed: true },
+    });
+  }
+  // Final-dash — last ~5% / 15m before the finish. Fires exactly
+  // once, ignores cooldown, punchy short line.
+  if (progress && progress.dashToFinish && !state.announcedFinalDash) {
+    const remaining = formatRemainingShort(progress.remainingMeters, s.units);
+    const line: Line = {
+      trigger: "finish-strong",
+      voice: "play",
+      urgency: 3,
+      text: `${remaining}! Here it comes!`,
+    };
+    return pack(state, s, progress, "goal-final-dash", line, {
+      tag: "[shouting, breathless]",
+      next: { ...state, lastTriggerAt: now, lastVoice: "play", announcedFinalDash: true },
     });
   }
 
@@ -331,6 +349,23 @@ function tagForEvent(ev: Event): string | undefined {
   }
 }
 
+/**
+ * Tight distance-remaining phrase for an urgent line. Drops units
+ * to stay punchy: "10 yards", "5 metres", "30 feet".
+ */
+function formatRemainingShort(meters: number, units: UnitSystem): string {
+  if (units === "imperial") {
+    if (meters < 18) {
+      const feet = Math.max(1, Math.round(meters * 3.28084));
+      return `${feet} feet`;
+    }
+    const yards = Math.max(1, Math.round(meters / 0.9144));
+    return `${yards} yards`;
+  }
+  const m = Math.max(1, Math.round(meters));
+  return `${m} metres`;
+}
+
 /** Map internal state to a legacy `Signal` for the template engine. */
 function asSig(s: DirectorSignal) {
   return {
@@ -373,10 +408,12 @@ export function computeIntensity(
   }
 
   // Event modifiers
-  if (event === "pace-surge" || event === "milestone-km" || event === "goal-complete") score += 15;
+  if (event === "pace-surge" || event === "milestone-km") score += 15;
   if (event === "cold-open") score = Math.max(score, 55);
   if (event === "color-aside" || event === "surroundings" || event === "weather") score = Math.max(20, Math.min(score, 50));
   if (event === "signoff") score = 70;
+  if (event === "goal-final-dash") score = 95;
+  if (event === "goal-complete") score = 100;
 
   return Math.max(0, Math.min(100, Math.round(score)));
 }
@@ -459,7 +496,9 @@ function buildPrompts(
   }
 
   lines.push("");
-  lines.push("Write the next broadcast line. ONE or TWO short sentences. Under 30 words.");
+  // Let the system prompt enforce the per-event word budget — this
+  // just reminds the model to keep it tight.
+  lines.push("Write the next broadcast line. Keep it punchy.");
 
   return { system, user: lines.join("\n") };
 }
@@ -514,7 +553,7 @@ export function buildRecapPrompts(opts: {
   );
   lines.push("");
   lines.push(
-    "Write the closing broadcast line. ONE or TWO short sentences, under 35 words. Reference the actual numbers — the distance, the time, or the pace. If the goal was hit, sound earned (not loud). If failed, be generous and set up the rematch. If there was no goal, celebrate the act of showing up. Do not say 'live' or 'we are underway' — the session is over."
+    "Write the closing broadcast line. ONE or TWO short sentences, under 25 words, tighter is better. Reference the actual numbers — the distance, the time, or the pace. If the goal was hit, sound earned (not loud). If failed, be generous and set up the rematch. If there was no goal, celebrate the act of showing up. Do not say 'live' or 'we are underway' — the session is over."
   );
   return { system, user: lines.join("\n") };
 }
@@ -522,19 +561,24 @@ export function buildRecapPrompts(opts: {
 const SYSTEM_PROMPT = `You are a voice on STADIUM — a live AI sports broadcast for walks, runs, and bike rides. The athlete is an everyday person doing an everyday activity, and you are making it sound like a championship event.
 
 Rules:
-- Output exactly ONE line of commentary. ONE or TWO short sentences. Under 30 words total.
+- Output exactly ONE line of commentary. ONE short sentence by default. At most two. Under 20 words total by default.
+- Word budget by event:
+    goal-final-dash: 4-10 words. Short. Clipped. Urgent.
+    goal-complete:   4-8 words. All-caps energy, no full sentence needed.
+    pace-surge / milestone / finish-strong: up to 18 words.
+    everything else: 10-18 words, the tighter the better.
 - Match the voice role you're given. PLAY-BY-PLAY is excitable, live, leaning into moments. COLOR COMMENTATOR is dry, wry, observational — think mid-fifties analyst who has seen it all.
-- Tone is British-inflected, smart, occasionally absurdist. Say pace units in full words ("kilometres per hour" or "miles per hour", per the preferred-units line in the user message) — never "kph" or "kmh" or "mph" as letters. Dry wit by default; crank the hype only on surges, milestones, final pushes, and goal completions.
+- Tone is British-inflected, smart, occasionally absurdist. Say pace units in full words ("kilometres per hour" or "miles per hour", per the preferred-units line in the user message) — never "kph" or "kmh" or "mph" as letters. Dry wit by default; crank the hype only on surges, milestones, final dashes, and goal completions.
 - Use ElevenLabs v3 audio tags in brackets to shape delivery. Match the intensity score:
-    intensity 70-100: [shouting], [ecstatic], [breathless], [urgent]
-    intensity 40-70:  [excited], [confident], [warm], [driving]
-    intensity 0-40:   [deadpan], [dry], [measured], [observational]
+    intensity 85-100: [shouting], [ecstatic], [breathless]
+    intensity 50-85:  [excited], [confident], [warm], [driving]
+    intensity 0-50:   [deadpan], [dry], [measured], [observational]
   Prefer the tag hinted in the user message when one is provided.
 - Never break character. No disclaimers, no "as an AI", no apologies, no meta about writing a line.
-- Do NOT quote the athlete unless the user message provides a mic quote to react to.
 - Never output more than ONE line. Never output explanations. Never output surrounding quotes.
 - Reference concrete things when they fit: the dog three houses back, the squirrel, the crowd, the scouts, the weather.
-- When a goal is behind or in final-push, your words carry urgency — short sentences, punchy verbs. When ahead, earned calm. When complete, rip the roof off.
+- On final-dash: NO hedging, NO setup, just the finish-line urgency. Example: "Five yards! Hold it!" or "Metres away! Now!"
+- On goal-complete: PUNCHY. No sentence needed. Example: "YES. On the nose." or "Goal. Banked."
 
 Output format:
 [audio-tag] your single line here.`;
