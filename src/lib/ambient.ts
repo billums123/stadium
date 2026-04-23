@@ -7,6 +7,43 @@
  */
 
 import { generateSfx, generateMusic } from "./elevenlabs";
+import { getAudioContext } from "./soundfx";
+
+/** An HTMLAudioElement whose output is routed through a GainNode in
+ *  our shared AudioContext. iOS Safari ignores HTMLAudioElement.volume
+ *  for mobile media — GainNode.gain.value is the only knob that
+ *  actually controls bed loudness on iPhone. Both the crowd and the
+ *  music bed are augmented this way via attachGainRouting(). */
+type RoutedAudio = HTMLAudioElement & {
+  __gain?: GainNode;
+  __ctx?: AudioContext;
+};
+
+function attachGainRouting(audio: HTMLAudioElement, initialVolume: number): void {
+  try {
+    const ctx = getAudioContext();
+    const source = ctx.createMediaElementSource(audio);
+    const gain = ctx.createGain();
+    gain.gain.value = initialVolume;
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    (audio as RoutedAudio).__gain = gain;
+    (audio as RoutedAudio).__ctx = ctx;
+  } catch {
+    // If MediaElementSource creation fails (already routed, AudioContext
+    // not yet unlocked, etc.) fall back to the element's own volume
+    // property. That still works on Android and desktop.
+    audio.volume = initialVolume;
+  }
+}
+
+/** Read the effective volume of a bed whether it's routed through
+ *  a GainNode or still using the HTMLAudioElement.volume fallback. */
+export function getBedVolume(audio: HTMLAudioElement): number {
+  const r = audio as RoutedAudio;
+  if (r.__gain) return r.__gain.gain.value;
+  return audio.volume;
+}
 
 const CROWD_PROMPT =
   "A massive excited stadium crowd roaring, continuous ambient cheer, distant whistles and claps, no music, loopable";
@@ -28,13 +65,14 @@ export async function loadCrowdBed(): Promise<HTMLAudioElement> {
   }
   const audio = new Audio();
   audio.loop = true;
-  audio.volume = 0.17;
   audio.preload = "auto";
   if (cachedCrowdUrl) {
     audio.src = cachedCrowdUrl;
   } else {
     audio.src = synthesizeCrowdDataUrl();
   }
+  // Route through a GainNode so iOS Safari honours our volume changes.
+  attachGainRouting(audio, 0.17);
   return audio;
 }
 
@@ -55,9 +93,9 @@ export async function loadMusicBed(): Promise<HTMLAudioElement | null> {
   }
   const audio = new Audio();
   audio.loop = true;
-  audio.volume = 0;
   audio.preload = "auto";
   audio.src = cachedMusicUrl;
+  attachGainRouting(audio, 0);
   return audio;
 }
 
@@ -107,6 +145,19 @@ export function crowdVolumeFor(phase: MusicPhase = "normal"): number {
  * `durationMs`; safe to call repeatedly (each call cancels the prior).
  */
 export function fadeTo(audio: HTMLAudioElement, target: number, durationMs: number) {
+  const routed = audio as RoutedAudio;
+  // Preferred path: Web Audio GainNode ramp. Works on iOS Safari.
+  if (routed.__gain && routed.__ctx) {
+    const ctx = routed.__ctx;
+    const gain = routed.__gain;
+    const now = ctx.currentTime;
+    gain.gain.cancelScheduledValues(now);
+    gain.gain.setValueAtTime(gain.gain.value, now);
+    gain.gain.linearRampToValueAtTime(target, now + durationMs / 1000);
+    return;
+  }
+  // Fallback: rAF-driven HTMLAudioElement.volume ramp. Works on
+  // Android and desktop, ignored by iOS mobile Safari.
   const start = audio.volume;
   const startAt = performance.now();
   const prev = (audio as HTMLAudioElement & { __fadeRaf?: number }).__fadeRaf;
