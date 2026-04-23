@@ -32,8 +32,6 @@ public/
   specs/stadium/{requirements,design,tasks}.md
   steering/{product,tech,structure}.md
 
-SPEC.md                   — human-readable single-page spec (mirror of
-                            .kiro/specs/stadium/* for non-Kiro readers)
 README.md                 — how to run / deploy / film the viral clip
 .env.example              — VITE_ELEVENLABS_API_KEY placeholder
 ```

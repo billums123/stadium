@@ -84,17 +84,13 @@ If the iOS motion prompt never appears, you're on HTTP, not HTTPS.
 gh repo create stadium --public --source=. --push
 ```
 
-## 6. Film + post
-
-See `VIDEO.md` and `POSTS.md`.
-
-## 7. Submit
+## 6. Submit
 
 Submission page on hacks.elevenlabs.io:
 - Deployed URL
 - GitHub URL
-- Blurb from `POSTS.md`
 - Video link
 - Links to each social post (+50 points each)
+- Written blurb
 
 Deadline: Thursday, April 23, 5 PM.
