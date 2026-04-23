@@ -187,6 +187,14 @@ export function useBroadcast(settings: Settings) {
   );
 
   const start = useCallback(async () => {
+    // MUST be the first line of start(). iOS Safari drops the
+    // user-gesture scope the moment we hit our first `await` below,
+    // at which point all later `new Audio(blob).play()` calls
+    // silently fail with no error. primeAudio() plays a silent WAV
+    // + kicks the AudioContext alive while the gesture is still
+    // in-scope so subsequent TTS / horn / countdown playback work.
+    primeAudio();
+
     setPartial({ phase: "warming", error: null, countdown: null });
     // Skip the director's own cold-open script — we're running a real
     // theatrical opening (welcome TTS + 3-2-1 countdown + horn) below.
@@ -202,10 +210,6 @@ export function useBroadcast(settings: Settings) {
     // Prime the LLM connection in the background so the first real
     // commentary line doesn't pay the cold-start latency.
     if (settings.useDynamic) warmUpLLM(settings.llmModel);
-
-    // Kick Web Audio alive inside the user gesture so the countdown
-    // beeps + horn can play on iOS without being autoplay-blocked.
-    primeAudio();
 
     try {
       crowdAudioRef.current = await loadCrowdBed();

@@ -173,7 +173,21 @@ export function victoryHorn(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, Math.round(duration * 1000)));
 }
 
-/** Kick the context alive during a user gesture so autoplay doesn't gate the countdown. */
+/** Kick the context alive during a user gesture so autoplay doesn't
+ *  gate the countdown. Also plays a silent WAV through an HTMLAudio
+ *  element, which is what iOS Safari actually keys its "audio is
+ *  allowed this session" flag to — without this, any later
+ *  `new Audio(blob).play()` (i.e. every TTS line) silently fails
+ *  because the blob is created after await boundaries have dropped
+ *  the gesture scope. MUST be called synchronously inside the click
+ *  handler, before any `await`. */
 export function primeAudio(): void {
   audioContext();
+  try {
+    const silent = new Audio(
+      "data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQIAAACAgA=="
+    );
+    silent.volume = 0;
+    void silent.play().catch(() => {});
+  } catch { /* no-op */ }
 }
