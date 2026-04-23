@@ -187,13 +187,28 @@ export function useBroadcast(settings: Settings) {
   );
 
   const start = useCallback(async () => {
-    // MUST be the first line of start(). iOS Safari drops the
+    // MUST be the first lines of start(). iOS Safari drops the
     // user-gesture scope the moment we hit our first `await` below,
     // at which point all later `new Audio(blob).play()` calls
     // silently fail with no error. primeAudio() plays a silent WAV
     // + kicks the AudioContext alive while the gesture is still
-    // in-scope so subsequent TTS / horn / countdown playback work.
+    // in-scope. We also eagerly create the shared speech-audio
+    // element HERE (inside the gesture) and play the same silent
+    // WAV through it — iOS keys its unlock flag to the specific
+    // HTMLAudioElement, so the one we reuse across every TTS line
+    // has to be the one that played inside the gesture.
     primeAudio();
+    if (!speechAudioRef.current) {
+      const a = new Audio() as WithPitchFlags;
+      a.preservesPitch = true;
+      a.mozPreservesPitch = true;
+      a.webkitPreservesPitch = true;
+      a.volume = 0;
+      a.src =
+        "data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQIAAACAgA==";
+      void a.play().catch(() => { /* unlock side effect fires regardless */ });
+      speechAudioRef.current = a;
+    }
 
     setPartial({ phase: "warming", error: null, countdown: null });
     // Skip the director's own cold-open script — we're running a real
@@ -231,7 +246,7 @@ export function useBroadcast(settings: Settings) {
     await speakWelcome(athlete, settings, careerRef.current, (line) => {
       lastLineRef.current = line;
       setPartial({ lastLine: line, speaking: true });
-    });
+    }, speechAudioRef);
     setPartial({ speaking: false });
 
     // ─── 2. Visual 3-2-1 countdown with a beep per tick ─────────────
@@ -294,7 +309,7 @@ export function useBroadcast(settings: Settings) {
       if (crowdAudioRef.current && !speakingRef.current) {
         const base = crowdVolumeFor(phase);
         const target =
-          phase === "normal" && lastIntensityRef.current > 70 ? 0.32 : base;
+          phase === "normal" && lastIntensityRef.current > 70 ? 0.25 : base;
         if (Math.abs(crowdAudioRef.current.volume - target) > 0.03) {
           fadeTo(crowdAudioRef.current, target, phase === "victory" ? 250 : 600);
         }
@@ -483,9 +498,18 @@ export function useBroadcast(settings: Settings) {
       });
       const url = URL.createObjectURL(blob);
       await new Promise<void>((resolve) => {
-        const audio = new Audio(url);
-        (audio as HTMLAudioElement & { preservesPitch?: boolean }).preservesPitch = true;
-        speechAudioRef.current = audio;
+        // Reuse the shared speech element so iOS's gesture-unlock
+        // state carries across the session.
+        let audio = speechAudioRef.current as WithPitchFlags | null;
+        if (!audio) {
+          audio = new Audio() as WithPitchFlags;
+          audio.preservesPitch = true;
+          speechAudioRef.current = audio;
+        }
+        audio.pause();
+        audio.src = url;
+        audio.volume = 1;
+        audio.playbackRate = 1;
         audio.onended = () => resolve();
         audio.onerror = () => resolve();
         audio.play().catch(() => resolve());
@@ -581,15 +605,25 @@ function playUrlAtRate(
   rate: number
 ): Promise<void> {
   return new Promise((resolve) => {
-    const audio = new Audio(url) as WithPitchFlags;
-    // Preserve pitch while speeding up — otherwise the voice goes
-    // chipmunky at any playbackRate > 1, which the user reads as
-    // "robotic". All three property names cover older Safari/Firefox.
-    audio.preservesPitch = true;
-    audio.mozPreservesPitch = true;
-    audio.webkitPreservesPitch = true;
+    // iOS Safari keys its "audio is allowed" flag to the specific
+    // HTMLAudioElement that was first played inside a user gesture.
+    // New elements created later (one per TTS line, as we used to do)
+    // aren't covered by that unlock, so on iPhone most lines played
+    // inconsistently. Reusing a single element — created / primed at
+    // GO time via primeAudio() — makes iOS honour every subsequent
+    // play() regardless of how many awaits we've crossed.
+    let audio = audioRef.current as WithPitchFlags | null;
+    if (!audio) {
+      audio = new Audio() as WithPitchFlags;
+      audio.preservesPitch = true;
+      audio.mozPreservesPitch = true;
+      audio.webkitPreservesPitch = true;
+      audioRef.current = audio;
+    }
+    audio.pause();
+    audio.src = url;
+    audio.volume = 1;
     audio.playbackRate = rate;
-    audioRef.current = audio;
     audio.onended = () => resolve();
     audio.onerror = () => resolve();
     audio.play().catch(() => resolve());
@@ -606,7 +640,7 @@ function duckBeds(
   music: HTMLAudioElement | null,
   ducked: boolean
 ) {
-  if (crowd) fadeTo(crowd, 0.22, 260);
+  if (crowd) fadeTo(crowd, 0.17, 260);
   if (music) fadeTo(music, ducked ? 0.12 : 0.18, 260);
 }
 
@@ -662,7 +696,8 @@ async function speakWelcome(
   athleteName: string,
   settings: Settings,
   career: Career,
-  onLineReady: (line: Line) => void
+  onLineReady: (line: Line) => void,
+  speechAudioRef: React.RefObject<HTMLAudioElement | null>
 ): Promise<void> {
   const careerTag =
     career.sessions === 0
@@ -712,7 +747,16 @@ async function speakWelcome(
     });
     const url = URL.createObjectURL(blob);
     await new Promise<void>((resolve) => {
-      const audio = new Audio(url);
+      // Reuse the shared speech element — see playUrlAtRate for why.
+      let audio = speechAudioRef.current;
+      if (!audio) {
+        audio = new Audio();
+        speechAudioRef.current = audio;
+      }
+      audio.pause();
+      audio.src = url;
+      audio.volume = 1;
+      audio.playbackRate = 1;
       audio.onended = () => resolve();
       audio.onerror = () => resolve();
       audio.play().catch(() => resolve());

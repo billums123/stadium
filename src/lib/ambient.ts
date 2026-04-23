@@ -28,7 +28,7 @@ export async function loadCrowdBed(): Promise<HTMLAudioElement> {
   }
   const audio = new Audio();
   audio.loop = true;
-  audio.volume = 0.22;
+  audio.volume = 0.17;
   audio.preload = "auto";
   if (cachedCrowdUrl) {
     audio.src = cachedCrowdUrl;
@@ -97,9 +97,9 @@ export function musicVolumeFor(
  * line is the expected sound.
  */
 export function crowdVolumeFor(phase: MusicPhase = "normal"): number {
-  if (phase === "victory") return 0.6;
-  if (phase === "dash") return 0.45;
-  return 0.22;
+  if (phase === "victory") return 0.5;
+  if (phase === "dash") return 0.38;
+  return 0.17;
 }
 
 /**
