@@ -183,7 +183,7 @@ function TopBar({
   phase: "idle" | "warming" | "live" | "stopping" | "recap";
 }) {
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between border-b border-[var(--color-line)] bg-[var(--color-ink)]/85 px-4 py-3 backdrop-blur">
+    <header className="sticky top-0 z-30 flex items-center justify-between border-b border-[var(--color-line)] bg-[var(--color-ink)]/85 px-4 py-3 pt-[max(env(safe-area-inset-top,0.75rem),0.75rem)] backdrop-blur">
       <div className="flex items-center gap-2">
         <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[var(--color-blaze)] font-display text-xl text-[var(--color-ink)]">
           S

@@ -11,6 +11,17 @@
     --color-turf: #0e3a1a;
     --color-crowd: #8a8880;
   }
+  /* Use wide-gamut P3 on displays that support it (iPhone Pro, recent
+     Mac / iPad). Sharper blaze-orange + volt-yellow. Falls back to the
+     sRGB values above on non-P3 screens. */
+  @supports (color: color(display-p3 1 0 0)) {
+    @media (color-gamut: p3) {
+      :root {
+        --color-blaze: color(display-p3 1 0.23 0.12);
+        --color-volt: color(display-p3 0.96 1 0.12);
+      }
+    }
+  }
 }
 
 @font-face {
@@ -31,8 +42,20 @@ body {
   margin: 0;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   overscroll-behavior: none;
   touch-action: manipulation;
+  /* Kill iOS's gray tap-flash on buttons. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Chrome elements shouldn't be selectable; long-press on headers /
+   buttons otherwise triggers iOS text selection UI. Captions stay
+   selectable so users can copy a quote. */
+header, nav, button, .font-display {
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 #root {

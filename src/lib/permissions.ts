@@ -30,22 +30,11 @@ export async function requestAllPermissions(): Promise<PrimerReport> {
     ready: false,
   };
 
-  // --- Geolocation (used for real pace, optional).
-  if ("geolocation" in navigator) {
-    report.geolocation = await new Promise<PermState>((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        () => resolve("granted"),
-        (err) => {
-          if (err.code === err.PERMISSION_DENIED) resolve("denied");
-          else resolve("prompt"); // timeout / position-unavailable — not a permission issue
-        },
-        { timeout: 3000, maximumAge: 10_000 }
-      );
-    });
-  }
-
   // --- Motion / accelerometer (iOS 13+ gates DeviceMotionEvent behind
-  // an explicit requestPermission() call inside a gesture).
+  // an explicit requestPermission() call inside a gesture). Must run
+  // FIRST so Safari still recognises the user-gesture context; if we
+  // await geolocation first, the gesture scope is lost by the time we
+  // reach requestPermission() and iOS silently returns "default".
   const dme = (globalThis as unknown as { DeviceMotionEvent?: DeviceMotionStatic })
     .DeviceMotionEvent;
   if (dme && typeof dme.requestPermission === "function") {
@@ -59,6 +48,20 @@ export async function requestAllPermissions(): Promise<PrimerReport> {
   } else if (typeof window !== "undefined" && "DeviceMotionEvent" in window) {
     // Android / desktop: no explicit grant needed.
     report.motion = "granted";
+  }
+
+  // --- Geolocation (used for real pace, optional).
+  if ("geolocation" in navigator) {
+    report.geolocation = await new Promise<PermState>((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        () => resolve("granted"),
+        (err) => {
+          if (err.code === err.PERMISSION_DENIED) resolve("denied");
+          else resolve("prompt"); // timeout / position-unavailable — not a permission issue
+        },
+        { timeout: 3000, maximumAge: 10_000 }
+      );
+    });
   }
 
   const motionOk = report.motion === "granted" || report.motion === "unsupported";
