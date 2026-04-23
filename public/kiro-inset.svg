@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet">
+  <rect width="1600" height="900" rx="28" fill="#0b0b0e"/>
+  <rect x="0" y="0" width="1600" height="62" rx="28" fill="#141418"/>
+  <rect x="0" y="34" width="1600" height="28" fill="#141418"/>
+
+  <circle cx="36" cy="31" r="9" fill="#ff5f57"/>
+  <circle cx="66" cy="31" r="9" fill="#febc2e"/>
+  <circle cx="96" cy="31" r="9" fill="#28c840"/>
+  <text x="800" y="38" text-anchor="middle"
+        font-family="ui-monospace, SF Mono, Menlo, monospace"
+        font-size="18" fill="#8a8880">stadium — zsh</text>
+
+  <g font-family="ui-monospace, SF Mono, Menlo, Consolas, monospace" font-size="26">
+    <text x="60" y="120" fill="#8a8880">~/tanner/stadium <tspan fill="#f5ff1f">$</tspan> git log --oneline</text>
+
+    <text x="60" y="180" fill="#8a8880">...</text>
+
+    <text x="60" y="230">
+      <tspan fill="#ff3b1f">43aaa22</tspan>
+      <tspan fill="#f5f2e8">  Fun + easy UX: inline athlete name, goal picker, confetti</tspan>
+    </text>
+    <text x="60" y="268">
+      <tspan fill="#ff3b1f">a50736b</tspan>
+      <tspan fill="#f5f2e8">  Dynamic commentary: GPT-5.4-mini + broadcast director + goal</tspan>
+    </text>
+    <text x="60" y="306">
+      <tspan fill="#ff3b1f">de4b1e1</tspan>
+      <tspan fill="#f5f2e8">  Anti-cheese rewrite + cold-open + two-voice broadcast</tspan>
+    </text>
+    <text x="60" y="344">
+      <tspan fill="#ff3b1f">dde9d86</tspan>
+      <tspan fill="#f5f2e8">  Optional generative music bed layered under the crowd roar</tspan>
+    </text>
+    <text x="60" y="382">
+      <tspan fill="#ff3b1f">99ec680</tspan>
+      <tspan fill="#f5f2e8">  Photo-finish share card: canvas PNG + Web Share API</tspan>
+    </text>
+    <text x="60" y="420">
+      <tspan fill="#ff3b1f">288e437</tspan>
+      <tspan fill="#f5f2e8">  PWA manifest + apple-touch-icon for installable polish</tspan>
+    </text>
+    <text x="60" y="458">
+      <tspan fill="#ff3b1f">5a4ac17</tspan>
+      <tspan fill="#f5f2e8">  Reframe product UI: drop hackathon signage</tspan>
+    </text>
+    <text x="60" y="496">
+      <tspan fill="#ff3b1f">c2601f8</tspan>
+      <tspan fill="#f5f2e8">  Docs: viral playbook README</tspan>
+    </text>
+    <text x="60" y="534">
+      <tspan fill="#ff3b1f">c0d1815</tspan>
+      <tspan fill="#f5f2e8">  Polish live HUD: hype meter, broadcast log, flash overlay</tspan>
+    </text>
+    <text x="60" y="572">
+      <tspan fill="#ff3b1f">79c5d75</tspan>
+      <tspan fill="#f5f2e8">  Fix broadcast start flow: non-blocking crowd-bed play</tspan>
+    </text>
+
+    <rect x="40" y="592" width="1520" height="46" rx="8" fill="#ff3b1f" fill-opacity="0.12" stroke="#ff3b1f" stroke-width="2"/>
+    <text x="60" y="624">
+      <tspan fill="#ff3b1f" font-weight="700">36a5615</tspan>
+      <tspan fill="#f5f2e8" font-weight="700">  Kiro spec-driven artifacts: .kiro/specs + .kiro/steering</tspan>
+    </text>
+    <text x="1150" y="624" fill="#f5ff1f" font-size="22" font-weight="700">← commit #2</text>
+
+    <text x="60" y="680">
+      <tspan fill="#ff3b1f">c8af939</tspan>
+      <tspan fill="#f5f2e8">  Scaffold STADIUM: Vite + React + Tailwind v4</tspan>
+    </text>
+
+    <text x="60" y="770" fill="#8a8880" font-size="22">specs landed before any feature code.</text>
+  </g>
+</svg>

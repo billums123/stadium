@@ -285,6 +285,11 @@ function BottomBar({
 }) {
   const isLive = phase === "live";
   const showDev = import.meta.env.DEV;
+  // Non-touch devices (laptops/desktop browsers) get the sim-run-pace
+  // control even in prod — it's how you demo the app without moving.
+  // Real phones (pointer: coarse) keep the clean hands-free layout.
+  const isNonTouch =
+    typeof window !== "undefined" && window.matchMedia("(pointer: fine)").matches;
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--color-line)] bg-[var(--color-ink)]/92 px-3 pb-[max(env(safe-area-inset-bottom,0.5rem),0.5rem)] pt-2 backdrop-blur sm:px-4 sm:pt-3">
       <div className="mx-auto flex w-full max-w-xl items-center justify-between gap-2">
@@ -300,7 +305,7 @@ function BottomBar({
           <div className="w-[82px] sm:w-[92px]" />
         )}
       </div>
-      {isLive && showDev && (
+      {isLive && (showDev || isNonTouch) && (
         <div className="mx-auto mt-1.5 flex w-full max-w-xl justify-center">
           <button
             onClick={() => onSimulate(11)}

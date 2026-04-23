@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1960 460" preserveAspectRatio="xMidYMid meet">
+  <rect x="40" y="40" width="380" height="380" rx="76" fill="#ff3b1f"/>
+  <text x="230" y="305" text-anchor="middle"
+        font-family="Arial Black, Impact, Bebas Neue, sans-serif"
+        font-weight="900" font-size="300" fill="#050505">S</text>
+
+  <text x="500" y="230" text-anchor="start"
+        font-family="Bebas Neue, Anton, Oswald, Impact, sans-serif"
+        font-weight="800" font-size="260" letter-spacing="20" fill="#f5f2e8"
+        dominant-baseline="central">STADIUM</text>
+</svg>
