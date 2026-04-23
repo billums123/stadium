@@ -23,13 +23,6 @@ function audioContext(): AudioContext {
   return ctx;
 }
 
-/** Exported so the ambient module can route crowd/music beds through
- *  the SAME audio context (and its GainNodes), which is the only
- *  reliable way to control bed volume on iOS Safari. */
-export function getAudioContext(): AudioContext {
-  return audioContext();
-}
-
 /** Short tick; `final` bumps the pitch for the last beep in a countdown. */
 export function countdownBeep(final = false): void {
   const ac = audioContext();

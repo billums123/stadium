@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createMotionTracker, type MotionState } from "../lib/motion";
 import type { Line, Voice } from "../lib/commentary";
 import { synthesizeSpeech } from "../lib/elevenlabs";
-import { loadCrowdBed, loadMusicBed, fadeTo, getBedVolume, musicVolumeFor, crowdVolumeFor, type MusicPhase } from "../lib/ambient";
+import { loadCrowdBed, loadMusicBed, fadeTo, musicVolumeFor, crowdVolumeFor, type MusicPhase } from "../lib/ambient";
 import { acquireWakeLock, type WakeLockHandle } from "../lib/wakelock";
 import { loadCareer, recordSession, saveCareer, type Career } from "../lib/career";
 import {
@@ -310,7 +310,7 @@ export function useBroadcast(settings: Settings) {
         const base = crowdVolumeFor(phase);
         const target =
           phase === "normal" && lastIntensityRef.current > 70 ? 0.25 : base;
-        if (Math.abs(getBedVolume(crowdAudioRef.current) - target) > 0.03) {
+        if (Math.abs(crowdAudioRef.current.volume - target) > 0.03) {
           fadeTo(crowdAudioRef.current, target, phase === "victory" ? 250 : 600);
         }
       }
@@ -322,7 +322,7 @@ export function useBroadcast(settings: Settings) {
           lastIntensityRef.current,
           phase
         );
-        if (Math.abs(getBedVolume(musicAudioRef.current) - target) > 0.015) {
+        if (Math.abs(musicAudioRef.current.volume - target) > 0.015) {
           fadeTo(musicAudioRef.current, target, phase === "victory" ? 250 : 900);
         }
       }
