@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="grain" cx="20%" cy="20%" r="80%">
+      <stop offset="0%" stop-color="#ff3b1f" stop-opacity="0.08"/>
+      <stop offset="60%" stop-color="#050505" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="grain2" cx="80%" cy="85%" r="70%">
+      <stop offset="0%" stop-color="#f5ff1f" stop-opacity="0.05"/>
+      <stop offset="55%" stop-color="#050505" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1080" height="1920" fill="#050505"/>
+  <rect width="1080" height="1920" fill="url(#grain)"/>
+  <rect width="1080" height="1920" fill="url(#grain2)"/>
+
+  <rect x="410" y="720" width="260" height="260" rx="52" fill="#ff3b1f"/>
+  <text x="540" y="895" text-anchor="middle"
+        font-family="Arial Black, Impact, Bebas Neue, sans-serif"
+        font-weight="900" font-size="200" fill="#050505">S</text>
+
+  <text x="540" y="1170" text-anchor="middle"
+        font-family="Bebas Neue, Anton, Oswald, Impact, sans-serif"
+        font-weight="800" font-size="170" letter-spacing="16" fill="#f5f2e8">STADIUM</text>
+
+  <rect x="340" y="1215" width="400" height="2" fill="#1a1a1d"/>
+
+  <text x="540" y="1275" text-anchor="middle"
+        font-family="ui-sans-serif, system-ui, -apple-system, sans-serif"
+        font-weight="500" font-size="28" letter-spacing="8" fill="#8a8880">LIVE COMMENTARY · WALK · RUN · RIDE</text>
+</svg>

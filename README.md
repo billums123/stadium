@@ -142,24 +142,28 @@ time, and returns `null` or `{ line, next }`. That makes the whole
 broadcast deterministic, testable, and trivially swappable to a
 Convai-backed generator later.
 
-## Demo controls (useful indoors)
+## Dev-only demo controls
+
+Hidden in production. Available when running `npm run dev`:
 
 - **SIM · RUN PACE** – fakes an 11 km/h jog so pace-surge and km
-  milestones fire even while you sit still
-- **LINE HYPE** – force-fires an immediate commentary line for
-  on-demand video cuts
+  milestones fire while you sit at your laptop
 - **SIM · WALK** – drops simulated pace so the "concerning dip" line
   can fire
+- **CUE · LINE** – force-fires an immediate commentary line for
+  on-demand testing
+
+Production UI stays hands-free — tap GO, the app drives itself.
 
 ## Viral playbook
 
 1. Phone in a chest strap or pocket.
-2. **Earbuds in** if possible (phone speakers engage echo cancellation
-   on all playback — less of an issue now that mic is off by default,
-   but earbuds still give the cleanest camera-captured commentary).
+2. **Earbuds in** if possible — gives the cleanest camera-captured
+   commentary and avoids the phone speaker's echo cancellation.
 3. Film yourself from a second phone or a friend.
 4. Tap **GO** and start moving.
-5. Hit **LINE HYPE** as you cross a landmark.
+5. The dash-to-finish and victory horn punctuate the last ~5% — plan
+   your sprint so the camera catches it.
 6. Tap **◉ SHARE** during the session for a photo-finish PNG.
 7. Post with `#ElevenHacks #CodeWithKiro`, tag `@kirodotdev` and
    `@elevenlabsio`.
